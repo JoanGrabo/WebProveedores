@@ -1,0 +1,104 @@
+// Tablas nuevas en tu base MySQL/MariaDB (no toca websoldadura.comandes).
+// Tras copiar el proyecto: edita .env y ejecuta bash setup.sh (o npm run instalar).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Rol {
+  ADMIN
+  PROVEEDOR
+}
+
+enum EstadoPieza {
+  PENDIENTE
+  HECHA
+  ENVIADA
+  RECIBIDA
+  REVISAR
+}
+
+enum EstadoComanda {
+  ABIERTA
+  EN_PROCESO
+  ENVIADA
+  RECIBIDA_PARCIAL
+  COMPLETADA
+}
+
+model Usuario {
+  id        String   @id @default(cuid())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       Rol
+  /// Debe coincidir con nomProveedor de la comanda para filtrar vistas de proveedor
+  proveedor String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  historial HistorialEstado[]
+
+  @@map("usuarios")
+}
+
+/// Copia sincronizada desde la lógica de negocio (origen: websoldadura.comandes)
+model Comanda {
+  id             String        @id @default(cuid())
+  numComanda     String        @unique @map("num_comanda")
+  reparacion     String?       @db.Text
+  nomProveedor   String        @map("nom_proveedor")
+  estado         EstadoComanda @default(ABIERTA)
+  fechaInsercion DateTime?     @map("fecha_insercion")
+  cerrada        Boolean       @default(false)
+  fechaSync      DateTime?     @map("fecha_sync")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  piezas PiezaComanda[]
+
+  @@index([nomProveedor])
+  @@index([estado])
+  @@map("comandas")
+}
+
+model PiezaComanda {
+  id             String      @id @default(cuid())
+  comandaId      String      @map("comanda_id")
+  comanda        Comanda     @relation(fields: [comandaId], references: [id], onDelete: Cascade)
+  /// idComanda de la fila original en websoldadura.comandes (opcional, único si existe)
+  idLineaOrigen  Int?        @unique @map("id_linea_origen")
+  codiPieza      String      @map("codi_pieza")
+  codigoFab      String?     @map("codigo_fab")
+  cantidad       Int
+  codigoConjunto String?     @map("codigo_conjunto")
+  op             String?     @map("op")
+  tipus          String?     @db.VarChar(64)
+  estado         EstadoPieza @default(PENDIENTE)
+  comentarios    String?     @db.Text
+  fechaEstado    DateTime?   @map("fecha_estado")
+
+  historial HistorialEstado[]
+
+  @@index([comandaId])
+  @@map("piezas_comanda")
+}
+
+model HistorialEstado {
+  id             String       @id @default(cuid())
+  piezaId        String       @map("pieza_id")
+  pieza          PiezaComanda @relation(fields: [piezaId], references: [id], onDelete: Cascade)
+  usuarioId      String?      @map("usuario_id")
+  usuario        Usuario?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  fecha          DateTime     @default(now())
+  estadoAnterior EstadoPieza? @map("estado_anterior")
+  estadoNuevo    EstadoPieza  @map("estado_nuevo")
+  comentario     String?      @db.Text
+
+  @@index([piezaId])
+  @@map("historial_estados")
+}

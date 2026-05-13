@@ -1,0 +1,35 @@
+================================================================================
+  INSTALACIÓN RÁPIDA (copia la carpeta al servidor o PC con Node.js 20+)
+================================================================================
+
+1) Instala Node.js 20 en Ubuntu si hace falta (en Windows: nodejs.org).
+
+2) Copia TODO el proyecto a una carpeta (por ejemplo /var/www/web-proveedores).
+   Si pasas desde Windows a Linux, BORRA la carpeta node_modules en el servidor
+   antes de instalar (en Linux hay que ejecutar npm install otra vez).
+
+3) En Linux:
+     chmod +x setup.sh
+     ./setup.sh
+   La primera vez solo crea el archivo .env — ábrelo y pon:
+     DATABASE_URL = cadena de conexión MySQL (misma base donde quieras las tablas nuevas)
+     JWT_SECRET   = un texto largo aleatorio
+   Vuelve a ejecutar:
+     ./setup.sh
+
+   En Windows (mismo flujo):
+     npm run instalar
+   (Si crea .env, edítalo y ejecuta otra vez npm run instalar)
+
+4) Arranque:
+     npm run dev          → pruebas en http://localhost:3000
+     npm run build        → compilación producción
+     npm start            → sirve el build (o usa PM2: ver README.md)
+
+5) Comprueba: http://localhost:3000/api/health  → debe mostrar "ok": true
+
+Usuarios demo tras el seed:
+  admin@empresa.local / Admin123!
+  proveedor@ejemplo.local / Proveedor123!
+
+================================================================================
