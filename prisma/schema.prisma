@@ -10,6 +10,40 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+/// ============================
+/// Tablas existentes (LEGACY)
+/// ============================
+/// Estas tablas YA existen en tu BD (`websoldadura`) y **no deben modificarse**.
+/// Las declaramos para que Prisma **NO intente borrarlas** al hacer `prisma db push`.
+/// Con `@@ignore` NO se generan en el Prisma Client, pero sí se “reconocen” a nivel de esquema.
+model ComandesLegacy {
+  idComanda      Int      @id @map("idComanda")
+  numComanda     String?  @map("numComanda") @db.VarChar(255)
+  reparacion     String?  @map("reparacion") @db.Text
+  nomProveedor   String?  @map("nomProveedor") @db.VarChar(255)
+  codiPieza      String?  @map("codiPieza") @db.VarChar(255)
+  codigoFab      String?  @map("codigoFab") @db.VarChar(255)
+  cantidad       Int?     @map("cantidad")
+  codigoConjunto String?  @map("codigoConjunto") @db.VarChar(255)
+  OP             String?  @map("OP") @db.VarChar(255)
+  tipus          String?  @map("tipus") @db.VarChar(255)
+  fechaInsercion DateTime? @map("fechaInsercion")
+  cerrada        Boolean? @map("cerrada")
+
+  @@map("comandes")
+  @@ignore
+}
+
+model UsersLegacy {
+  idusers  Int     @id @map("idusers")
+  nomuser  String? @map("nomuser") @db.VarChar(255)
+  password String? @map("password") @db.VarChar(255)
+  rol      String? @map("rol") @db.VarChar(255)
+
+  @@map("users")
+  @@ignore
+}
+
 enum Rol {
   ADMIN
   PROVEEDOR

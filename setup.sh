@@ -26,7 +26,7 @@ npm install
 
 echo "==> Prisma: generar cliente y crear tablas (db push)"
 npx prisma generate
-npx prisma db push
+npx prisma db push --accept-data-loss
 
 echo "==> Datos de ejemplo (seed)"
 npx prisma db seed
