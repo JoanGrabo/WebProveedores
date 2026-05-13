@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
 type Linea = {
   idComanda: number;
@@ -31,17 +31,27 @@ function qs(params: Record<string, string>) {
   return new URLSearchParams(params).toString();
 }
 
-function rowTone(l: Linea, seleccionado: boolean): string {
+/** Estilo de tarjeta de línea (clic para seleccionar si está pendiente). */
+function cardTone(l: Linea, seleccionado: boolean): string {
   if (l.estadoPortal === "RECIBIDA_EMPRESA") {
-    return "border-l-4 border-emerald-500 bg-emerald-50/90 text-zinc-800";
+    return "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
   }
   if (l.estadoPortal === "ENVIADA_PROVEEDOR") {
-    return "border-l-4 border-orange-400 bg-orange-50 text-zinc-900";
+    return "border-l-[6px] border-orange-400 bg-orange-50 shadow-sm";
   }
   if (seleccionado) {
-    return "border border-orange-300 bg-orange-50/70 ring-2 ring-orange-200/80";
+    return "border border-orange-300 bg-orange-50/90 ring-2 ring-orange-200 shadow-sm";
   }
-  return "border border-transparent bg-white hover:bg-zinc-50";
+  return "border border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:bg-zinc-50/80";
+}
+
+function Campo({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">{etiqueta}</p>
+      <p className="mt-0.5 break-words font-medium text-zinc-900">{valor ?? "—"}</p>
+    </div>
+  );
 }
 
 export function ComandasExplorer() {
@@ -221,22 +231,26 @@ export function ComandasExplorer() {
         </Link>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-12">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Proveedores</h2>
+      <div className="flex flex-col gap-8">
+        {/* 1 — Proveedores (solo prueba; con login cada usuario verá solo su cuenta) */}
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">1 · Proveedores</h2>
+            <span className="text-[11px] text-zinc-400">Modo prueba · luego se filtrará por sesión</span>
+          </div>
           {loadingProv && <p className="mt-4 text-sm text-zinc-500">Cargando…</p>}
           {errProv && <p className="mt-4 text-sm text-red-600">{errProv}</p>}
           {!loadingProv && !errProv && (
-            <ul className="mt-4 max-h-[min(52vh,28rem)] space-y-1.5 overflow-y-auto pr-1">
+            <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {proveedores.map((p) => (
                 <li key={p}>
                   <button
                     type="button"
                     onClick={() => void cargarComandas(p)}
-                    className={`w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                    className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
                       proveedorSel === p
                         ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                        : "text-zinc-800 hover:bg-zinc-100"
+                        : "border border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-sky-300 hover:bg-white"
                     }`}
                   >
                     {p}
@@ -247,16 +261,17 @@ export function ComandasExplorer() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Nº comanda</h2>
-          <p className="mt-1 text-[11px] leading-snug text-zinc-400">
-            Progreso: líneas marcadas como enviadas (o recibidas) / total de líneas de esa comanda.
+        {/* 2 — Comandas */}
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">2 · Números de comanda</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-zinc-500">
+            Progreso por comanda: líneas ya enviadas o recibidas en empresa frente al total de líneas en esa comanda.
           </p>
-          {!proveedorSel && <p className="mt-4 text-sm text-zinc-500">Elige un proveedor.</p>}
+          {!proveedorSel && <p className="mt-4 text-sm text-zinc-500">Primero elige un proveedor en el bloque anterior.</p>}
           {proveedorSel && loadingCom && <p className="mt-4 text-sm text-zinc-500">Cargando…</p>}
           {proveedorSel && errCom && <p className="mt-4 text-sm text-red-600">{errCom}</p>}
           {proveedorSel && !loadingCom && !errCom && (
-            <ul className="mt-4 max-h-[min(52vh,28rem)] space-y-1.5 overflow-y-auto pr-1">
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {comandas.map((c) => {
                 const completa = c.total > 0 && c.enviadas >= c.total;
                 const seleccionada = numSel === c.numComanda;
@@ -266,18 +281,18 @@ export function ComandasExplorer() {
                     <button
                       type="button"
                       onClick={() => void cargarLineas(proveedorSel, c.numComanda)}
-                      className={`flex w-full flex-col gap-1.5 rounded-xl px-3 py-2.5 text-left transition ${
+                      className={`flex w-full flex-col gap-2 rounded-xl px-4 py-3 text-left transition ${
                         seleccionada
                           ? "bg-sky-600 text-white shadow-md shadow-sky-600/25 ring-2 ring-sky-400/60"
                           : completa
-                            ? "bg-emerald-50 text-emerald-950 ring-1 ring-emerald-200 hover:bg-emerald-100"
-                            : "text-zinc-800 hover:bg-zinc-100"
+                            ? "border border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100"
+                            : "border border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-zinc-300 hover:bg-white"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-sm font-semibold">{c.numComanda}</span>
+                        <span className="font-mono text-base font-semibold">{c.numComanda}</span>
                         <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold tabular-nums ${
+                          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${
                             seleccionada
                               ? "bg-white/20 text-white"
                               : completa
@@ -289,7 +304,7 @@ export function ComandasExplorer() {
                         </span>
                       </div>
                       <div
-                        className={`h-1.5 w-full overflow-hidden rounded-full ${
+                        className={`h-2 w-full overflow-hidden rounded-full ${
                           seleccionada ? "bg-white/25" : completa ? "bg-emerald-200/80" : "bg-zinc-200"
                         }`}
                       >
@@ -308,22 +323,24 @@ export function ComandasExplorer() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm lg:col-span-6">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        {/* 3 — Líneas (tarjetas verticales) */}
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Líneas de comanda</h2>
-              <p className="mt-1 text-sm text-zinc-500">
-                Clic en filas <strong className="text-zinc-700">pendientes</strong>; luego <strong className="text-orange-700">Enviar</strong> para guardarlas en base de datos (naranja).
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">3 · Líneas de la comanda</h2>
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
+                Toca una tarjeta <strong className="text-zinc-800">pendiente</strong> para marcarla; después pulsa{" "}
+                <strong className="text-orange-700">Enviar selección</strong>.
               </p>
               {progresoLineasActuales && (
-                <p className="mt-2 inline-flex items-center gap-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs font-medium text-zinc-700">
-                  <span className="tabular-nums text-zinc-900">
+                <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
+                  <span className="tabular-nums text-base font-semibold text-zinc-900">
                     {progresoLineasActuales.enviadas}/{progresoLineasActuales.total}
                   </span>
-                  líneas enviadas o recibidas en esta comanda
+                  <span>líneas enviadas o recibidas</span>
                   {progresoLineasActuales.enviadas === progresoLineasActuales.total && progresoLineasActuales.total > 0 && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
-                      Completa
+                      Comanda completa
                     </span>
                   )}
                 </p>
@@ -333,14 +350,14 @@ export function ComandasExplorer() {
               type="button"
               onClick={() => void enviar()}
               disabled={!proveedorSel || !numSel || enviando || numSeleccionados === 0}
-              className="shrink-0 rounded-xl bg-orange-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none"
+              className="w-full shrink-0 rounded-xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
             >
               {enviando ? "Guardando…" : "Enviar selección"}
             </button>
           </div>
 
           {!proveedorSel || !numSel ? (
-            <p className="mt-6 text-sm text-zinc-500">Selecciona proveedor y número de comanda.</p>
+            <p className="mt-6 text-sm text-zinc-500">Elige proveedor y comanda en los bloques anteriores.</p>
           ) : loadingLin ? (
             <p className="mt-6 text-sm text-zinc-500">Cargando líneas…</p>
           ) : errLin ? (
@@ -359,72 +376,73 @@ export function ComandasExplorer() {
                 </div>
               )}
               <p className="mt-3 text-xs text-zinc-500">
-                {numSeleccionados > 0 ? `${numSeleccionados} línea(s) seleccionadas para enviar.` : "Nada seleccionado."}
+                {numSeleccionados > 0 ? `${numSeleccionados} tarjeta(s) seleccionadas.` : "Nada seleccionado."}
               </p>
-              <div className="mt-4 max-h-[min(50vh,26rem)] overflow-auto rounded-xl border border-zinc-200">
-                <table className="w-full min-w-[640px] text-left text-xs sm:text-sm">
-                  <thead className="sticky top-0 z-10 border-b border-zinc-200 bg-zinc-50 text-zinc-500">
-                    <tr>
-                      <th className="px-3 py-2.5 font-medium">ID</th>
-                      <th className="px-3 py-2.5 font-medium">Pieza</th>
-                      <th className="px-3 py-2.5 font-medium">Cant.</th>
-                      <th className="px-3 py-2.5 font-medium">Fab</th>
-                      <th className="px-3 py-2.5 font-medium">Conjunto</th>
-                      <th className="px-3 py-2.5 font-medium">OP</th>
-                      <th className="px-3 py-2.5 font-medium">Tipo</th>
-                      <th className="px-3 py-2.5 font-medium">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {lineas.map((l) => {
-                      const sel = seleccion.has(l.idComanda);
-                      const bloqueada = !puedeSeleccionar(l);
-                      const estadoEtiqueta =
-                        l.estadoPortal === "RECIBIDA_EMPRESA"
-                          ? "Recibida"
-                          : l.estadoPortal === "ENVIADA_PROVEEDOR"
-                            ? "Enviada"
-                            : "Pendiente";
-                      return (
-                        <tr
-                          key={l.idComanda}
-                          role={bloqueada ? undefined : "button"}
-                          tabIndex={bloqueada ? undefined : 0}
-                          onClick={() => toggleLinea(l)}
-                          onKeyDown={(ev) => {
-                            if (bloqueada) return;
-                            if (ev.key === "Enter" || ev.key === " ") {
-                              ev.preventDefault();
-                              toggleLinea(l);
-                            }
-                          }}
-                          className={`transition ${rowTone(l, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+              <div className="mt-4 max-h-[min(70vh,40rem)] space-y-3 overflow-y-auto pr-1">
+                {lineas.map((l) => {
+                  const sel = seleccion.has(l.idComanda);
+                  const bloqueada = !puedeSeleccionar(l);
+                  const estadoEtiqueta =
+                    l.estadoPortal === "RECIBIDA_EMPRESA"
+                      ? "Recibida empresa"
+                      : l.estadoPortal === "ENVIADA_PROVEEDOR"
+                        ? "Enviada"
+                        : "Pendiente";
+                  const fechaIns = l.fechaInsercion
+                    ? new Date(l.fechaInsercion).toLocaleString("es-ES", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })
+                    : "—";
+                  return (
+                    <article
+                      key={l.idComanda}
+                      role={bloqueada ? undefined : "button"}
+                      tabIndex={bloqueada ? undefined : 0}
+                      onClick={() => toggleLinea(l)}
+                      onKeyDown={(ev) => {
+                        if (bloqueada) return;
+                        if (ev.key === "Enter" || ev.key === " ") {
+                          ev.preventDefault();
+                          toggleLinea(l);
+                        }
+                      }}
+                      className={`rounded-2xl p-4 text-left transition ${cardTone(l, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200/80 pb-3">
+                        <span className="font-mono text-xs font-medium text-zinc-500">Línea #{l.idComanda}</span>
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                            l.estadoPortal === "RECIBIDA_EMPRESA"
+                              ? "bg-emerald-100 text-emerald-800"
+                              : l.estadoPortal === "ENVIADA_PROVEEDOR"
+                                ? "bg-orange-100 text-orange-900"
+                                : "bg-zinc-100 text-zinc-600"
+                          }`}
                         >
-                          <td className="px-3 py-2.5 font-mono text-zinc-500">{l.idComanda}</td>
-                          <td className="px-3 py-2.5 font-mono text-zinc-900">{l.codiPieza ?? "—"}</td>
-                          <td className="px-3 py-2.5 text-zinc-800">{l.cantidad ?? "—"}</td>
-                          <td className="px-3 py-2.5 font-mono text-zinc-600">{l.codigoFab ?? "—"}</td>
-                          <td className="px-3 py-2.5 font-mono text-zinc-600">{l.codigoConjunto ?? "—"}</td>
-                          <td className="px-3 py-2.5 text-zinc-700">{l.OP ?? "—"}</td>
-                          <td className="px-3 py-2.5 text-zinc-700">{l.tipus ?? "—"}</td>
-                          <td className="px-3 py-2.5">
-                            <span
-                              className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                                l.estadoPortal === "RECIBIDA_EMPRESA"
-                                  ? "bg-emerald-100 text-emerald-800"
-                                  : l.estadoPortal === "ENVIADA_PROVEEDOR"
-                                    ? "bg-orange-100 text-orange-900"
-                                    : "bg-zinc-100 text-zinc-600"
-                              }`}
-                            >
-                              {estadoEtiqueta}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                          {estadoEtiqueta}
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
+                        <Campo etiqueta="Pieza" valor={<span className="font-mono">{l.codiPieza}</span>} />
+                        <Campo etiqueta="Cantidad" valor={l.cantidad} />
+                        <Campo etiqueta="Cód. fabricación" valor={<span className="font-mono text-sm">{l.codigoFab}</span>} />
+                        <Campo etiqueta="Conjunto" valor={<span className="font-mono text-sm">{l.codigoConjunto}</span>} />
+                        <Campo etiqueta="OP" valor={l.OP} />
+                        <Campo etiqueta="Tipo" valor={l.tipus} />
+                        <Campo etiqueta="Cerrada" valor={l.cerrada == null ? "—" : l.cerrada ? "Sí" : "No"} />
+                        <Campo etiqueta="Fecha inserción" valor={fechaIns} />
+                        <Campo
+                          etiqueta="Reparación"
+                          valor={l.reparacion ? <span className="line-clamp-3 font-normal">{l.reparacion}</span> : "—"}
+                        />
+                      </div>
+                      {!bloqueada && (
+                        <p className="mt-3 text-[11px] text-zinc-500">Pulsa para incluir o quitar del envío.</p>
+                      )}
+                    </article>
+                  );
+                })}
               </div>
             </>
           )}
