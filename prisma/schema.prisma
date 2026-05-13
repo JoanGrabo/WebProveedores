@@ -65,6 +65,27 @@ enum EstadoComanda {
   COMPLETADA
 }
 
+/// Estado extendido por línea (PK = idComanda de la tabla legacy `comandes`). No altera `comandes`.
+enum EstadoLineaComandesExt {
+  ENVIADA_PROVEEDOR
+  RECIBIDA_EMPRESA
+}
+
+model LineaComandesEstado {
+  id               String                 @id @default(cuid())
+  /// Coincide con comandes.idComanda
+  idLineaComandes  Int                    @unique @map("id_linea_comandes")
+  nomProveedor     String                 @map("nom_proveedor") @db.VarChar(255)
+  numComanda       String                 @map("num_comanda") @db.VarChar(255)
+  estado           EstadoLineaComandesExt @default(ENVIADA_PROVEEDOR)
+  enviadoAt        DateTime               @default(now()) @map("enviado_at")
+  recibidoAt       DateTime?              @map("recibido_at")
+
+  @@index([nomProveedor, numComanda])
+  @@index([estado])
+  @@map("lineas_comandes_estado")
+}
+
 model Usuario {
   id        String   @id @default(cuid())
   nombre    String
