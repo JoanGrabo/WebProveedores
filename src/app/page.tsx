@@ -13,6 +13,18 @@ export default function Home() {
       </div>
       <ul className="space-y-3 text-slate-300">
         <li>
+          Ver comandas del portal:{" "}
+          <Link href="/comandas" className="text-amber-400 underline-offset-4 hover:underline">
+            /comandas
+          </Link>
+        </li>
+        <li>
+          Ver filas de la tabla original <code className="text-slate-500">comandes</code> (solo lectura):{" "}
+          <Link href="/comandes-origen" className="text-amber-400 underline-offset-4 hover:underline">
+            /comandes-origen
+          </Link>
+        </li>
+        <li>
           Comprueba la API:{" "}
           <Link href="/api/health" className="text-amber-400 underline-offset-4 hover:underline">
             /api/health
