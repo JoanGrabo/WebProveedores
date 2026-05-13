@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Linea = {
   idComanda: number;
@@ -45,13 +45,13 @@ function cardTone(l: Linea, seleccionado: boolean): string {
   return "border border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:bg-zinc-50/80";
 }
 
-function Campo({ etiqueta, valor }: { etiqueta: string; valor: ReactNode }) {
-  return (
-    <div className="min-w-0">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">{etiqueta}</p>
-      <p className="mt-0.5 break-words font-medium text-zinc-900">{valor ?? "—"}</p>
-    </div>
-  );
+function selectClass(disabled: boolean) {
+  return [
+    "mt-1.5 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition",
+    disabled
+      ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
+      : "border-zinc-300 bg-white text-zinc-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/25",
+  ].join(" ");
 }
 
 export function ComandasExplorer() {
@@ -232,105 +232,91 @@ export function ComandasExplorer() {
       </div>
 
       <div className="flex flex-col gap-8">
-        {/* 1 — Proveedores (solo prueba; con login cada usuario verá solo su cuenta) */}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">1 · Proveedores</h2>
-            <span className="text-[11px] text-zinc-400">Modo prueba · luego se filtrará por sesión</span>
-          </div>
-          {loadingProv && <p className="mt-4 text-sm text-zinc-500">Cargando…</p>}
-          {errProv && <p className="mt-4 text-sm text-red-600">{errProv}</p>}
-          {!loadingProv && !errProv && (
-            <ul className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-              {proveedores.map((p) => (
-                <li key={p}>
-                  <button
-                    type="button"
-                    onClick={() => void cargarComandas(p)}
-                    className={`w-full rounded-xl px-4 py-3 text-left text-sm font-medium transition ${
-                      proveedorSel === p
-                        ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
-                        : "border border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-sky-300 hover:bg-white"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-
-        {/* 2 — Comandas */}
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">2 · Números de comanda</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-zinc-500">
-            Progreso por comanda: líneas ya enviadas o recibidas en empresa frente al total de líneas en esa comanda.
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            Con login el proveedor vendrá fijado y solo verás tus comandas; estos desplegables son para la prueba.
           </p>
-          {!proveedorSel && <p className="mt-4 text-sm text-zinc-500">Primero elige un proveedor en el bloque anterior.</p>}
-          {proveedorSel && loadingCom && <p className="mt-4 text-sm text-zinc-500">Cargando…</p>}
-          {proveedorSel && errCom && <p className="mt-4 text-sm text-red-600">{errCom}</p>}
-          {proveedorSel && !loadingCom && !errCom && (
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {comandas.map((c) => {
-                const completa = c.total > 0 && c.enviadas >= c.total;
-                const seleccionada = numSel === c.numComanda;
-                const pct = c.total > 0 ? Math.round((c.enviadas / c.total) * 100) : 0;
-                return (
-                  <li key={c.numComanda}>
-                    <button
-                      type="button"
-                      onClick={() => void cargarLineas(proveedorSel, c.numComanda)}
-                      className={`flex w-full flex-col gap-2 rounded-xl px-4 py-3 text-left transition ${
-                        seleccionada
-                          ? "bg-sky-600 text-white shadow-md shadow-sky-600/25 ring-2 ring-sky-400/60"
-                          : completa
-                            ? "border border-emerald-200 bg-emerald-50 text-emerald-950 hover:bg-emerald-100"
-                            : "border border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-zinc-300 hover:bg-white"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-base font-semibold">{c.numComanda}</span>
-                        <span
-                          className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${
-                            seleccionada
-                              ? "bg-white/20 text-white"
-                              : completa
-                                ? "bg-emerald-200 text-emerald-900"
-                                : "bg-zinc-200 text-zinc-700"
-                          }`}
-                        >
-                          {c.enviadas}/{c.total}
-                        </span>
-                      </div>
-                      <div
-                        className={`h-2 w-full overflow-hidden rounded-full ${
-                          seleccionada ? "bg-white/25" : completa ? "bg-emerald-200/80" : "bg-zinc-200"
-                        }`}
-                      >
-                        <div
-                          className={`h-full rounded-full transition-all ${
-                            seleccionada ? "bg-white" : completa ? "bg-emerald-500" : "bg-orange-400"
-                          }`}
-                          style={{ width: `${Math.min(100, pct)}%` }}
-                        />
-                      </div>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+          <div className="mt-4 grid gap-5 md:grid-cols-2">
+            <div>
+              <label htmlFor="sel-proveedor" className="text-xs font-medium text-zinc-600">
+                Proveedor
+              </label>
+              <select
+                id="sel-proveedor"
+                className={selectClass(loadingProv)}
+                disabled={loadingProv || !!errProv}
+                value={proveedorSel ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) {
+                    setProveedorSel(null);
+                    setComandas([]);
+                    setNumSel(null);
+                    setLineas([]);
+                    setSeleccion(new Set());
+                    setMsgEnvio(null);
+                    setErrCom(null);
+                    return;
+                  }
+                  void cargarComandas(v);
+                }}
+              >
+                <option value="">— Elige proveedor —</option>
+                {proveedores.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+              {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
+              {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
+            </div>
+            <div>
+              <label htmlFor="sel-comanda" className="text-xs font-medium text-zinc-600">
+                Nº comanda
+              </label>
+              <select
+                id="sel-comanda"
+                className={selectClass(!proveedorSel || loadingCom)}
+                disabled={!proveedorSel || loadingCom || !!errCom}
+                value={numSel ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v || !proveedorSel) {
+                    setNumSel(null);
+                    setLineas([]);
+                    setSeleccion(new Set());
+                    setMsgEnvio(null);
+                    return;
+                  }
+                  void cargarLineas(proveedorSel, v);
+                }}
+              >
+                <option value="">— Elige comanda —</option>
+                {comandas.map((c) => {
+                  const completa = c.total > 0 && c.enviadas >= c.total;
+                  const suf = completa ? " ✓" : "";
+                  return (
+                    <option key={c.numComanda} value={c.numComanda}>
+                      {c.numComanda} ({c.enviadas}/{c.total}){suf}
+                    </option>
+                  );
+                })}
+              </select>
+              {proveedorSel && loadingCom && <p className="mt-1 text-xs text-zinc-500">Cargando comandas…</p>}
+              {proveedorSel && errCom && <p className="mt-1 text-xs text-red-600">{errCom}</p>}
+            </div>
+          </div>
         </section>
 
-        {/* 3 — Líneas (tarjetas verticales) */}
+        {/* Líneas (compactas) */}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">3 · Líneas de la comanda</h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Líneas</h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
-                Toca una tarjeta <strong className="text-zinc-800">pendiente</strong> para marcarla; después pulsa{" "}
-                <strong className="text-orange-700">Enviar selección</strong>.
+                Toca una fila <strong className="text-zinc-800">pendiente</strong> para seleccionarla; <strong className="text-orange-700">Enviar selección</strong> guarda en base de datos.
               </p>
               {progresoLineasActuales && (
                 <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
@@ -357,7 +343,7 @@ export function ComandasExplorer() {
           </div>
 
           {!proveedorSel || !numSel ? (
-            <p className="mt-6 text-sm text-zinc-500">Elige proveedor y comanda en los bloques anteriores.</p>
+            <p className="mt-6 text-sm text-zinc-500">Elige proveedor y comanda en los desplegables de arriba.</p>
           ) : loadingLin ? (
             <p className="mt-6 text-sm text-zinc-500">Cargando líneas…</p>
           ) : errLin ? (
@@ -376,15 +362,15 @@ export function ComandasExplorer() {
                 </div>
               )}
               <p className="mt-3 text-xs text-zinc-500">
-                {numSeleccionados > 0 ? `${numSeleccionados} tarjeta(s) seleccionadas.` : "Nada seleccionado."}
+                {numSeleccionados > 0 ? `${numSeleccionados} línea(s) seleccionadas.` : "Nada seleccionado."}
               </p>
-              <div className="mt-4 max-h-[min(70vh,40rem)] space-y-3 overflow-y-auto pr-1">
+              <div className="mt-3 max-h-[min(70vh,40rem)] space-y-1.5 overflow-y-auto pr-1">
                 {lineas.map((l) => {
                   const sel = seleccion.has(l.idComanda);
                   const bloqueada = !puedeSeleccionar(l);
                   const estadoEtiqueta =
                     l.estadoPortal === "RECIBIDA_EMPRESA"
-                      ? "Recibida empresa"
+                      ? "Recibida"
                       : l.estadoPortal === "ENVIADA_PROVEEDOR"
                         ? "Enviada"
                         : "Pendiente";
@@ -407,12 +393,29 @@ export function ComandasExplorer() {
                           toggleLinea(l);
                         }
                       }}
-                      className={`rounded-2xl p-4 text-left transition ${cardTone(l, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(l, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200/80 pb-3">
-                        <span className="font-mono text-xs font-medium text-zinc-500">Línea #{l.idComanda}</span>
+                      <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
+                        <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 sm:items-center">
+                          <div>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Pieza</span>
+                            <p className="truncate font-mono text-sm font-semibold text-zinc-900">{l.codiPieza ?? "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Cantidad</span>
+                            <p className="text-sm font-semibold text-zinc-900">{l.cantidad ?? "—"}</p>
+                          </div>
+                          <div className="min-w-0 sm:col-span-1">
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Conjunto</span>
+                            <p className="truncate font-mono text-sm text-zinc-800">{l.codigoConjunto ?? "—"}</p>
+                          </div>
+                          <div>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Inserción</span>
+                            <p className="text-xs text-zinc-600">{fechaIns}</p>
+                          </div>
+                        </div>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                             l.estadoPortal === "RECIBIDA_EMPRESA"
                               ? "bg-emerald-100 text-emerald-800"
                               : l.estadoPortal === "ENVIADA_PROVEEDOR"
@@ -423,23 +426,6 @@ export function ComandasExplorer() {
                           {estadoEtiqueta}
                         </span>
                       </div>
-                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
-                        <Campo etiqueta="Pieza" valor={<span className="font-mono">{l.codiPieza}</span>} />
-                        <Campo etiqueta="Cantidad" valor={l.cantidad} />
-                        <Campo etiqueta="Cód. fabricación" valor={<span className="font-mono text-sm">{l.codigoFab}</span>} />
-                        <Campo etiqueta="Conjunto" valor={<span className="font-mono text-sm">{l.codigoConjunto}</span>} />
-                        <Campo etiqueta="OP" valor={l.OP} />
-                        <Campo etiqueta="Tipo" valor={l.tipus} />
-                        <Campo etiqueta="Cerrada" valor={l.cerrada == null ? "—" : l.cerrada ? "Sí" : "No"} />
-                        <Campo etiqueta="Fecha inserción" valor={fechaIns} />
-                        <Campo
-                          etiqueta="Reparación"
-                          valor={l.reparacion ? <span className="line-clamp-3 font-normal">{l.reparacion}</span> : "—"}
-                        />
-                      </div>
-                      {!bloqueada && (
-                        <p className="mt-3 text-[11px] text-zinc-500">Pulsa para incluir o quitar del envío.</p>
-                      )}
                     </article>
                   );
                 })}
