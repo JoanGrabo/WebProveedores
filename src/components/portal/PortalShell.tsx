@@ -67,7 +67,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
   const isAdmin = me?.rol === "ADMIN";
 
   return (
-    <div className="flex min-h-screen bg-zinc-950">
+    <div className="min-h-screen bg-zinc-950">
       {/* Mobile overlay */}
       {navOpen && (
         <button
@@ -80,7 +80,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
 
       <aside
         className={[
-          "fixed inset-y-0 left-0 z-50 flex w-72 flex-col border-r border-white/5 bg-zinc-900/95 shadow-2xl backdrop-blur-xl transition-transform lg:static lg:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 flex h-screen max-h-screen w-72 flex-col border-r border-white/5 bg-zinc-900/95 shadow-2xl backdrop-blur-xl transition-transform",
           navOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         ].join(" ")}
       >
@@ -191,7 +191,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col lg:ml-0">
+      <div className="flex min-h-screen min-w-0 flex-col lg:pl-72">
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-zinc-200/80 bg-zinc-50/90 px-4 backdrop-blur-md lg:hidden">
           <button
             type="button"

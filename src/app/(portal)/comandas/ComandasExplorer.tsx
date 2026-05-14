@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ComandasGlobalesDataTable } from "@/components/datatables/ComandasGlobalesDataTable";
 
 type Linea = {
@@ -80,6 +80,36 @@ function selectClass(disabled: boolean) {
   ].join(" ");
 }
 
+function esComandaCompleta(c: ComandaResumen): boolean {
+  return c.total > 0 && c.enviadas >= c.total;
+}
+
+/** Fondo en `<option>` (soporte variable entre navegadores). */
+function comandaOptionStyle(c: ComandaResumen): CSSProperties {
+  const { total, enviadas } = c;
+  if (total <= 0) {
+    return { backgroundColor: "#fafafa", color: "#3f3f46" };
+  }
+  if (enviadas >= total) {
+    return { backgroundColor: "#dcfce7", color: "#14532d" };
+  }
+  if (enviadas === 0) {
+    return { backgroundColor: "#ffffff", color: "#52525b" };
+  }
+  return { backgroundColor: "#fef9c3", color: "#713f12" };
+}
+
+function ordenComandasParaSelect(a: ComandaResumen, b: ComandaResumen): number {
+  const ca = esComandaCompleta(a);
+  const cb = esComandaCompleta(b);
+  if (ca !== cb) return ca ? 1 : -1;
+  if (!ca) {
+    if (a.enviadas !== b.enviadas) return a.enviadas - b.enviadas;
+    return a.numComanda.localeCompare(b.numComanda, undefined, { numeric: true, sensitivity: "base" });
+  }
+  return a.numComanda.localeCompare(b.numComanda, undefined, { numeric: true, sensitivity: "base" });
+}
+
 function LineasLeyenda({ rol }: { rol: "ADMIN" | "PROVEEDOR" }) {
   const prov = rol === "PROVEEDOR";
   return (
@@ -146,6 +176,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   const [comandasGlobales, setComandasGlobales] = useState<ComandaGlobal[]>([]);
   const [loadingGlob, setLoadingGlob] = useState(false);
   const [errGlob, setErrGlob] = useState<string | null>(null);
+
+  const comandasOrdenSelect = useMemo(
+    () => [...comandas].sort(ordenComandasParaSelect),
+    [comandas],
+  );
 
   useEffect(() => {
     let cancel = false;
@@ -845,11 +880,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                 }}
               >
                 <option value="">— Elige comanda —</option>
-                {comandas.map((c) => {
-                  const completa = c.total > 0 && c.enviadas >= c.total;
+                {comandasOrdenSelect.map((c) => {
+                  const completa = esComandaCompleta(c);
                   const suf = completa ? " ✓" : "";
                   return (
-                    <option key={c.numComanda} value={c.numComanda}>
+                    <option key={c.numComanda} value={c.numComanda} style={comandaOptionStyle(c)}>
                       {c.numComanda} ({c.enviadas}/{c.total}){suf}
                     </option>
                   );
