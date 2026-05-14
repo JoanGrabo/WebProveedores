@@ -27,6 +27,13 @@ type ComandaResumen = {
   enviadas: number;
 };
 
+type ComandaGlobal = {
+  nomProveedor: string;
+  numComanda: string;
+  total: number;
+  enviadas: number;
+};
+
 type Me = {
   id: string;
   email: string;
@@ -84,6 +91,10 @@ export function ComandasExplorer() {
   const [seleccion, setSeleccion] = useState<Set<number>>(() => new Set());
   const [enviando, setEnviando] = useState(false);
   const [msgEnvio, setMsgEnvio] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  const [comandasGlobales, setComandasGlobales] = useState<ComandaGlobal[]>([]);
+  const [loadingGlob, setLoadingGlob] = useState(false);
+  const [errGlob, setErrGlob] = useState<string | null>(null);
 
   useEffect(() => {
     let cancel = false;
@@ -148,6 +159,31 @@ export function ComandasExplorer() {
       cancel = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!me || me.rol !== "ADMIN") return;
+    let cancel = false;
+    (async () => {
+      setLoadingGlob(true);
+      setErrGlob(null);
+      try {
+        const r = await fetch(`/api/comandes/explore?${qs({ step: "comandas-globales" })}`);
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Error al cargar listado global");
+        if (!cancel) setComandasGlobales(Array.isArray(j.comandas) ? j.comandas : []);
+      } catch (e) {
+        if (!cancel) {
+          setErrGlob(e instanceof Error ? e.message : "Error");
+          setComandasGlobales([]);
+        }
+      } finally {
+        if (!cancel) setLoadingGlob(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [me]);
 
   const fetchResumenComandas = useCallback(async (nom: string) => {
     const r = await fetch(`/api/comandes/explore?${qs({ step: "comandas", proveedor: nom })}`);
@@ -320,6 +356,11 @@ export function ComandasExplorer() {
               )}
             </span>
           )}
+          {me?.rol === "ADMIN" && (
+            <Link href="/admin/usuarios" className="text-sm font-medium text-violet-700 hover:text-violet-950">
+              Usuarios
+            </Link>
+          )}
           <button
             type="button"
             onClick={() => void logout()}
@@ -333,12 +374,70 @@ export function ComandasExplorer() {
         </div>
       </div>
 
+      {me?.rol === "ADMIN" && (
+        <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
+          <p className="mt-1 text-xs text-violet-900/80">
+            Listado global (todos los proveedores). Pulsa <strong>Abrir</strong> para cargar esa comanda en los desplegables y en las líneas.
+          </p>
+          {loadingGlob ? (
+            <p className="mt-4 text-sm text-zinc-600">Cargando listado…</p>
+          ) : errGlob ? (
+            <p className="mt-4 text-sm text-red-600">{errGlob}</p>
+          ) : comandasGlobales.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">No hay comandas en la tabla origen.</p>
+          ) : (
+            <div className="mt-4 max-h-64 overflow-auto rounded-xl border border-violet-200/70 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 bg-violet-100/95 text-xs font-semibold uppercase text-violet-950">
+                  <tr>
+                    <th className="px-3 py-2">Proveedor</th>
+                    <th className="px-3 py-2">Comanda</th>
+                    <th className="px-3 py-2">Progreso</th>
+                    <th className="w-24 px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {comandasGlobales.map((row) => {
+                    const completa = row.total > 0 && row.enviadas >= row.total;
+                    return (
+                      <tr key={`${row.nomProveedor}|${row.numComanda}`} className="border-t border-zinc-100">
+                        <td className="px-3 py-2 text-zinc-800">{row.nomProveedor}</td>
+                        <td className="px-3 py-2 font-mono text-zinc-900">{row.numComanda}</td>
+                        <td className="px-3 py-2 tabular-nums text-zinc-700">
+                          {row.enviadas}/{row.total}
+                          {completa ? " ✓" : ""}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700"
+                            onClick={() => {
+                              void (async () => {
+                                await cargarComandas(row.nomProveedor);
+                                await cargarLineas(row.nomProveedor, row.numComanda);
+                              })();
+                            }}
+                          >
+                            Abrir
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <div className="flex flex-col gap-8">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
           <p className="mt-1 text-xs text-zinc-500">
             {me?.rol === "ADMIN"
-              ? "Como administrador puedes elegir cualquier proveedor. Los proveedores solo ven sus propias comandas."
+              ? "Puedes usar el listado global arriba o elegir proveedor y comanda aquí. Gestiona cuentas en Usuarios."
               : "Solo se muestran las comandas de tu empresa (proveedor asignado a tu cuenta)."}
           </p>
           <div className={`mt-4 grid gap-5 ${me?.rol === "ADMIN" ? "md:grid-cols-2" : ""}`}>

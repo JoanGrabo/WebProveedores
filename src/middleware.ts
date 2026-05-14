@@ -26,7 +26,12 @@ export async function middleware(request: NextRequest) {
       throw new Error("invalid");
     }
 
-    if (pathname.startsWith("/comandes-origen") || pathname.startsWith("/api/comandes/recibir")) {
+    if (
+      pathname.startsWith("/comandes-origen") ||
+      pathname.startsWith("/api/comandes/recibir") ||
+      pathname.startsWith("/admin") ||
+      pathname.startsWith("/api/admin")
+    ) {
       if (claims.rol !== "ADMIN") {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
@@ -45,5 +50,14 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/comandas", "/comandas/:path*", "/comandes-origen", "/comandes-origen/:path*", "/api/comandes/:path*"],
+  matcher: [
+    "/comandas",
+    "/comandas/:path*",
+    "/comandes-origen",
+    "/comandes-origen/:path*",
+    "/admin",
+    "/admin/:path*",
+    "/api/comandes/:path*",
+    "/api/admin/:path*",
+  ],
 };
