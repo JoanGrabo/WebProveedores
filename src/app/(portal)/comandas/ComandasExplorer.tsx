@@ -538,11 +538,17 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   }
 
   return (
-    <div className="space-y-8">
-      {me?.rol === "ADMIN" && <LineasLeyenda rol="ADMIN" />}
+    <div className="flex flex-col gap-8">
+      {me?.rol === "ADMIN" && (
+        <div className="order-1 shrink-0">
+          <LineasLeyenda rol="ADMIN" />
+        </div>
+      )}
 
-        {/* Líneas primero: visibles al abrir comanda desde el panel sin scroll */}
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        {/* Líneas: orden visual con flex order (admin: leyenda → proveedor/comanda → líneas → globales) */}
+        <section
+          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-3" : "order-1"}`}
+        >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Líneas</h2>
@@ -618,7 +624,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
 
           {!proveedorSel || !numSel ? (
             <p className="mt-6 text-xs text-zinc-500">
-              {me?.rol === "ADMIN" ? "Proveedor y comanda abajo." : (
+              {me?.rol === "ADMIN" ? "Elige proveedor y comanda arriba." : (
                 <>Elige una comanda en <strong className="text-zinc-700">Tus comandas</strong> más abajo.</>
               )}
             </p>
@@ -731,10 +737,14 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           )}
         </section>
 
-      {me?.rol === "PROVEEDOR" && <LineasLeyenda rol="PROVEEDOR" />}
+      {me?.rol === "PROVEEDOR" && (
+        <div className="order-2 shrink-0">
+          <LineasLeyenda rol="PROVEEDOR" />
+        </div>
+      )}
 
       {me?.rol === "ADMIN" && (
-        <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
+        <section className="order-4 rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
           <ComandasGlobalesDataTable
             variant="violet"
@@ -751,7 +761,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         </section>
       )}
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <section
+          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-2" : "order-3"}`}
+        >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">
