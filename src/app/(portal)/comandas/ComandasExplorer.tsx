@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Linea = {
   idComanda: number;
@@ -46,13 +46,20 @@ function qs(params: Record<string, string>) {
   return new URLSearchParams(params).toString();
 }
 
-/** Estilo de tarjeta de línea (clic para seleccionar si está pendiente). */
-function cardTone(l: Linea, seleccionado: boolean): string {
+/** Estilo de tarjeta de línea (clic para seleccionar según rol y estado). */
+function cardTone(l: Linea, seleccionado: boolean, rol: Me["rol"] | null): string {
   if (l.estadoPortal === "RECIBIDA_EMPRESA") {
     return "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
   }
+  if (l.estadoPortal === "RECHAZADA_EMPRESA") {
+    const base = "border-l-[6px] border-rose-500 bg-rose-50/95 shadow-sm";
+    if (seleccionado && rol === "PROVEEDOR") return `${base} ring-2 ring-rose-300`;
+    return base;
+  }
   if (l.estadoPortal === "ENVIADA_PROVEEDOR") {
-    return "border-l-[6px] border-orange-400 bg-orange-50 shadow-sm";
+    const base = "border-l-[6px] border-orange-400 bg-orange-50 shadow-sm";
+    if (seleccionado && (rol === "ADMIN" || rol === "PROVEEDOR")) return `${base} ring-2 ring-orange-300`;
+    return base;
   }
   if (seleccionado) {
     return "border border-orange-300 bg-orange-50/90 ring-2 ring-orange-200 shadow-sm";
@@ -69,7 +76,13 @@ function selectClass(disabled: boolean) {
   ].join(" ");
 }
 
-export function ComandasExplorer() {
+type ComandasExplorerProps = {
+  initialProveedor?: string;
+  initialComanda?: string;
+};
+
+export function ComandasExplorer(props: ComandasExplorerProps = {}) {
+  const { initialProveedor, initialComanda } = props;
   const [me, setMe] = useState<Me | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const [bootErr, setBootErr] = useState<string | null>(null);
@@ -90,7 +103,10 @@ export function ComandasExplorer() {
 
   const [seleccion, setSeleccion] = useState<Set<number>>(() => new Set());
   const [enviando, setEnviando] = useState(false);
+  const [desmarcando, setDesmarcando] = useState(false);
   const [msgEnvio, setMsgEnvio] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+  const [revisando, setRevisando] = useState(false);
+  const [msgRevision, setMsgRevision] = useState<{ type: "ok" | "err" | "warn"; text: string } | null>(null);
 
   const [comandasGlobales, setComandasGlobales] = useState<ComandaGlobal[]>([]);
   const [loadingGlob, setLoadingGlob] = useState(false);
@@ -200,6 +216,7 @@ export function ComandasExplorer() {
       setLineas([]);
       setSeleccion(new Set());
       setMsgEnvio(null);
+      setMsgRevision(null);
       setLoadingCom(true);
       setErrCom(null);
       try {
@@ -218,6 +235,7 @@ export function ComandasExplorer() {
     setNumSel(num);
     setSeleccion(new Set());
     setMsgEnvio(null);
+    setMsgRevision(null);
     setLoadingLin(true);
     setErrLin(null);
     try {
@@ -236,13 +254,37 @@ export function ComandasExplorer() {
     }
   }, []);
 
-  const puedeSeleccionar = useCallback((l: Linea) => {
-    return l.estadoPortal !== "ENVIADA_PROVEEDOR" && l.estadoPortal !== "RECIBIDA_EMPRESA";
-  }, []);
+  const deepLinkAdminAplicado = useRef<string | null>(null);
+  useEffect(() => {
+    if (!sessionReady || !me || me.rol !== "ADMIN") return;
+    const p0 = initialProveedor?.trim();
+    const n0 = initialComanda?.trim();
+    if (!p0 || !n0) return;
+    const key = `${p0}|${n0}`;
+    if (deepLinkAdminAplicado.current === key) return;
+    deepLinkAdminAplicado.current = key;
+    void (async () => {
+      await cargarComandas(p0);
+      await cargarLineas(p0, n0);
+    })();
+  }, [sessionReady, me, initialProveedor, initialComanda, cargarComandas, cargarLineas]);
+
+  const puedeSeleccionarLinea = useCallback(
+    (l: Linea) => {
+      if (!me) return false;
+      if (me.rol === "ADMIN") return l.estadoPortal !== "RECIBIDA_EMPRESA";
+      return (
+        l.estadoPortal == null ||
+        l.estadoPortal === "RECHAZADA_EMPRESA" ||
+        l.estadoPortal === "ENVIADA_PROVEEDOR"
+      );
+    },
+    [me],
+  );
 
   const toggleLinea = useCallback(
     (l: Linea) => {
-      if (!puedeSeleccionar(l)) return;
+      if (!puedeSeleccionarLinea(l)) return;
       setSeleccion((prev) => {
         const n = new Set(prev);
         if (n.has(l.idComanda)) n.delete(l.idComanda);
@@ -250,11 +292,32 @@ export function ComandasExplorer() {
         return n;
       });
       setMsgEnvio(null);
+      setMsgRevision(null);
     },
-    [puedeSeleccionar],
+    [puedeSeleccionarLinea],
   );
 
   const numSeleccionados = useMemo(() => seleccion.size, [seleccion]);
+
+  const idLineasEnviadasSeleccionadas = useMemo(() => {
+    return lineas
+      .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
+      .map((l) => l.idComanda);
+  }, [lineas, seleccion]);
+
+  const numPendientesORechazoSeleccion = useMemo(() => {
+    return lineas.filter(
+      (l) =>
+        seleccion.has(l.idComanda) &&
+        (l.estadoPortal == null || l.estadoPortal === "RECHAZADA_EMPRESA"),
+    ).length;
+  }, [lineas, seleccion]);
+
+  const idLineasNaranjasSeleccionAdmin = useMemo(() => {
+    return lineas
+      .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
+      .map((l) => l.idComanda);
+  }, [lineas, seleccion]);
 
   const enviar = useCallback(async () => {
     if (!proveedorSel || !numSel) return;
@@ -265,6 +328,7 @@ export function ComandasExplorer() {
     }
     setEnviando(true);
     setMsgEnvio(null);
+    setMsgRevision(null);
     try {
       const r = await fetch("/api/comandes/enviar", {
         method: "POST",
@@ -287,6 +351,95 @@ export function ComandasExplorer() {
       setEnviando(false);
     }
   }, [proveedorSel, numSel, seleccion, cargarLineas, fetchResumenComandas]);
+
+  const desmarcarEnvio = useCallback(async () => {
+    if (!proveedorSel || !numSel || me?.rol !== "PROVEEDOR") return;
+    const idLineas = idLineasEnviadasSeleccionadas;
+    if (idLineas.length === 0) {
+      setMsgEnvio({
+        type: "err",
+        text: "Selecciona líneas naranjas (enviadas y aún sin confirmar por administración) para quitar el envío.",
+      });
+      return;
+    }
+    setDesmarcando(true);
+    setMsgEnvio(null);
+    setMsgRevision(null);
+    try {
+      const r = await fetch("/api/comandes/desmarcar-envio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nomProveedor: proveedorSel,
+          numComanda: numSel,
+          idLineas,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Error al quitar el envío");
+      setMsgEnvio({ type: "ok", text: j.mensaje ?? "Listo." });
+      setSeleccion(new Set());
+      await cargarLineas(proveedorSel, numSel);
+      await fetchResumenComandas(proveedorSel);
+    } catch (e) {
+      setMsgEnvio({ type: "err", text: e instanceof Error ? e.message : "Error" });
+    } finally {
+      setDesmarcando(false);
+    }
+  }, [
+    proveedorSel,
+    numSel,
+    me?.rol,
+    idLineasEnviadasSeleccionadas,
+    cargarLineas,
+    fetchResumenComandas,
+  ]);
+
+  const revisionAdmin = useCallback(
+    async (accion: "aceptar" | "rechazar") => {
+      if (!proveedorSel || !numSel) return;
+      const idLineas =
+        accion === "rechazar"
+          ? lineas
+              .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
+              .map((l) => l.idComanda)
+          : Array.from(seleccion);
+      if (idLineas.length === 0) {
+        setMsgRevision({
+          type: "err",
+          text:
+            accion === "rechazar"
+              ? "Selecciona líneas naranjas (enviadas por el proveedor) para declinar."
+              : "Selecciona al menos una línea.",
+        });
+        return;
+      }
+      setRevisando(true);
+      setMsgRevision(null);
+      try {
+        const r = await fetch("/api/comandes/recibir", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idLineas, accion }),
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Error al guardar");
+        const n = typeof j.actualizadas === "number" ? j.actualizadas : 0;
+        setMsgRevision({
+          type: accion === "aceptar" || n > 0 ? "ok" : "warn",
+          text: j.mensaje ?? (n > 0 ? "Guardado." : "Sin cambios."),
+        });
+        setSeleccion(new Set());
+        await cargarLineas(proveedorSel, numSel);
+        await fetchResumenComandas(proveedorSel);
+      } catch (e) {
+        setMsgRevision({ type: "err", text: e instanceof Error ? e.message : "Error" });
+      } finally {
+        setRevisando(false);
+      }
+    },
+    [proveedorSel, numSel, seleccion, lineas, cargarLineas, fetchResumenComandas],
+  );
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -336,6 +489,10 @@ export function ComandasExplorer() {
           <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
             <span className="h-2 w-2 rounded-full bg-orange-400" />
             Línea enviada (proveedor)
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            Declinada por empresa (el proveedor puede reenviar)
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
             <span className="h-2 w-2 rounded-full bg-emerald-600" />
@@ -434,6 +591,7 @@ export function ComandasExplorer() {
                       setLineas([]);
                       setSeleccion(new Set());
                       setMsgEnvio(null);
+                      setMsgRevision(null);
                       setErrCom(null);
                       return;
                     }
@@ -473,6 +631,7 @@ export function ComandasExplorer() {
                     setLineas([]);
                     setSeleccion(new Set());
                     setMsgEnvio(null);
+                    setMsgRevision(null);
                     return;
                   }
                   void cargarLineas(proveedorSel, v);
@@ -501,7 +660,19 @@ export function ComandasExplorer() {
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Líneas</h2>
               <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
-                Toca una fila <strong className="text-zinc-800">pendiente</strong> para seleccionarla; <strong className="text-orange-700">Enviar selección</strong> guarda en base de datos.
+                {me?.rol === "ADMIN" ? (
+                  <>
+                    Puedes marcar <strong className="text-emerald-800">recepción confirmada</strong> en cualquier línea que aún no esté en verde (también si el proveedor no marcó envío). Para{" "}
+                    <strong className="text-rose-800">declinar</strong>, selecciona solo filas <strong className="text-orange-800">naranjas</strong>.
+                  </>
+                ) : (
+                  <>
+                    Toca líneas <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong> y pulsa{" "}
+                    <strong className="text-orange-700">Enviar selección</strong> para marcarlas en naranja. Si aún no las ha confirmado un administrador,
+                    puedes seleccionar las <strong className="text-orange-800">naranjas</strong> y pulsar <strong className="text-zinc-800">Quitar envío</strong> para
+                    volver a pendiente.
+                  </>
+                )}
               </p>
               {progresoLineasActuales && (
                 <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
@@ -517,14 +688,51 @@ export function ComandasExplorer() {
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => void enviar()}
-              disabled={!proveedorSel || !numSel || enviando || numSeleccionados === 0}
-              className="w-full shrink-0 rounded-xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
-            >
-              {enviando ? "Guardando…" : "Enviar selección"}
-            </button>
+            <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:items-end">
+              {me?.rol === "ADMIN" ? (
+                <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void revisionAdmin("aceptar")}
+                    disabled={!proveedorSel || !numSel || revisando || numSeleccionados === 0}
+                    className="w-full rounded-xl bg-emerald-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
+                  >
+                    {revisando ? "Guardando…" : "Confirmar recepción"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void revisionAdmin("rechazar")}
+                    disabled={
+                      !proveedorSel || !numSel || revisando || idLineasNaranjasSeleccionAdmin.length === 0
+                    }
+                    className="w-full rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
+                  >
+                    {revisando ? "Guardando…" : "Declinar recepción"}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex w-full flex-col gap-2 sm:flex-row sm:justify-end">
+                  <button
+                    type="button"
+                    onClick={() => void enviar()}
+                    disabled={!proveedorSel || !numSel || enviando || desmarcando || numPendientesORechazoSeleccion === 0}
+                    className="w-full shrink-0 rounded-xl bg-orange-500 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
+                  >
+                    {enviando ? "Guardando…" : "Enviar selección"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void desmarcarEnvio()}
+                    disabled={
+                      !proveedorSel || !numSel || enviando || desmarcando || idLineasEnviadasSeleccionadas.length === 0
+                    }
+                    className="w-full shrink-0 rounded-xl border-2 border-zinc-400 bg-white px-6 py-3 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none sm:w-auto"
+                  >
+                    {desmarcando ? "Quitando…" : "Quitar envío (sin confirmar)"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {!proveedorSel || !numSel ? (
@@ -535,6 +743,19 @@ export function ComandasExplorer() {
             <p className="mt-6 text-sm text-red-600">{errLin}</p>
           ) : (
             <>
+              {msgRevision && (
+                <div
+                  className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                    msgRevision.type === "ok"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+                      : msgRevision.type === "warn"
+                        ? "border-amber-200 bg-amber-50 text-amber-950"
+                        : "border-red-200 bg-red-50 text-red-900"
+                  }`}
+                >
+                  {msgRevision.text}
+                </div>
+              )}
               {msgEnvio && (
                 <div
                   className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
@@ -552,13 +773,15 @@ export function ComandasExplorer() {
               <div className="mt-3 max-h-[min(70vh,40rem)] space-y-1.5 overflow-y-auto pr-1">
                 {lineas.map((l) => {
                   const sel = seleccion.has(l.idComanda);
-                  const bloqueada = !puedeSeleccionar(l);
+                  const bloqueada = !puedeSeleccionarLinea(l);
                   const estadoEtiqueta =
                     l.estadoPortal === "RECIBIDA_EMPRESA"
                       ? "Recibida"
                       : l.estadoPortal === "ENVIADA_PROVEEDOR"
-                        ? "Enviada"
-                        : "Pendiente";
+                        ? "Enviada (pendiente revisión)"
+                        : l.estadoPortal === "RECHAZADA_EMPRESA"
+                          ? "Declinada"
+                          : "Pendiente";
                   const fechaIns = l.fechaInsercion
                     ? new Date(l.fechaInsercion).toLocaleString("es-ES", {
                         dateStyle: "short",
@@ -578,7 +801,7 @@ export function ComandasExplorer() {
                           toggleLinea(l);
                         }
                       }}
-                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(l, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(l, sel, me?.rol ?? null)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
                     >
                       <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 sm:items-center">
@@ -605,7 +828,9 @@ export function ComandasExplorer() {
                               ? "bg-emerald-100 text-emerald-800"
                               : l.estadoPortal === "ENVIADA_PROVEEDOR"
                                 ? "bg-orange-100 text-orange-900"
-                                : "bg-zinc-100 text-zinc-600"
+                                : l.estadoPortal === "RECHAZADA_EMPRESA"
+                                  ? "bg-rose-100 text-rose-900"
+                                  : "bg-zinc-100 text-zinc-600"
                           }`}
                         >
                           {estadoEtiqueta}

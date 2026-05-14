@@ -51,8 +51,17 @@ function HubCard({
   );
 }
 
+type PendienteRecepcion = {
+  nomProveedor: string;
+  numComanda: string;
+  lineasPendientes: number;
+};
+
 export default function DashboardPage() {
   const [me, setMe] = useState<Me | null>(null);
+  const [pendientesRecepcion, setPendientesRecepcion] = useState<PendienteRecepcion[]>([]);
+  const [cargandoPendientes, setCargandoPendientes] = useState(false);
+  const [errPendientes, setErrPendientes] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -62,6 +71,32 @@ export default function DashboardPage() {
   }, []);
 
   const admin = me?.rol === "ADMIN";
+
+  useEffect(() => {
+    if (!admin) return;
+    let cancel = false;
+    void (async () => {
+      setCargandoPendientes(true);
+      setErrPendientes(null);
+      try {
+        const r = await fetch("/api/comandes/explore?step=pendientes-recepcion-admin");
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Error al cargar pendientes");
+        if (cancel) return;
+        setPendientesRecepcion(Array.isArray(j.comandas) ? j.comandas : []);
+      } catch (e) {
+        if (!cancel) {
+          setErrPendientes(e instanceof Error ? e.message : "Error");
+          setPendientesRecepcion([]);
+        }
+      } finally {
+        if (!cancel) setCargandoPendientes(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [admin]);
 
   return (
     <div className="space-y-10">
@@ -77,6 +112,56 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {admin && (
+        <section className="rounded-2xl border border-orange-200/90 bg-orange-50/40 p-6 shadow-sm ring-1 ring-orange-100 sm:p-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-orange-950">Comandas pendientes de confirmar recepción</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-orange-950/85">
+            Líneas que el proveedor marcó como <strong>enviadas</strong> (naranja) y ningún administrador ha confirmado aún como recibidas. Pulsa{" "}
+            <strong>Abrir</strong> para ir al explorador con esa comanda cargada.
+          </p>
+          {cargandoPendientes ? (
+            <p className="mt-4 text-sm text-orange-900/80">Cargando…</p>
+          ) : errPendientes ? (
+            <p className="mt-4 text-sm text-red-700">{errPendientes}</p>
+          ) : pendientesRecepcion.length === 0 ? (
+            <p className="mt-4 text-sm text-orange-900/75">No hay envíos pendientes de confirmación en este momento.</p>
+          ) : (
+            <div className="mt-5 overflow-x-auto rounded-xl border border-orange-200/80 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-orange-100/90 text-xs font-semibold uppercase text-orange-950">
+                  <tr>
+                    <th className="px-4 py-3">Proveedor</th>
+                    <th className="px-4 py-3">Comanda</th>
+                    <th className="px-4 py-3">Líneas por confirmar</th>
+                    <th className="w-28 px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {pendientesRecepcion.map((row) => {
+                    const href = `/comandas?proveedor=${encodeURIComponent(row.nomProveedor)}&comanda=${encodeURIComponent(row.numComanda)}`;
+                    return (
+                      <tr key={`${row.nomProveedor}|${row.numComanda}`} className="border-t border-zinc-100">
+                        <td className="px-4 py-3 text-zinc-800">{row.nomProveedor}</td>
+                        <td className="px-4 py-3 font-mono text-zinc-900">{row.numComanda}</td>
+                        <td className="px-4 py-3 tabular-nums text-zinc-700">{row.lineasPendientes}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={href}
+                            className="inline-flex rounded-lg bg-orange-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-orange-700"
+                          >
+                            Abrir
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
 
       <div>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">Accesos rápidos</h2>

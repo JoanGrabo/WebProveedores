@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma, EstadoLineaComandesExt, Rol } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { EstadoLineaComandesExt, Rol } from "@prisma/client";
-import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 
 const bodySchema = z.object({
   idLineas: z.array(z.number().int().positive()),
+  /** Sin campo: mismo comportamiento histórico (aceptar recepción). */
+  accion: z.enum(["aceptar", "rechazar"]).optional().default("aceptar"),
 });
 
 /**
- * Panel empresa: marca líneas como recibidas.
- * Solo ADMIN (también validado en middleware).
+ * Panel empresa (solo ADMIN):
+ * - aceptar: marca líneas como recibidas en empresa. Puede ser aunque el proveedor no haya
+ *   pulsado «enviado» (crea/actualiza fila en RECIBIDA).
+ * - rechazar: solo líneas en ENVIADA_PROVEEDOR (naranja) → RECHAZADA_EMPRESA.
  */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
@@ -32,21 +36,74 @@ export async function POST(req: NextRequest) {
   }
 
   const ids = Array.from(new Set(parsed.data.idLineas));
+  const accion = parsed.data.accion;
 
   try {
+    if (accion === "aceptar") {
+      const rows = await prisma.$queryRaw<
+        { idComanda: number; nomProveedor: string; numComanda: string }[]
+      >`
+        SELECT
+          c.idComanda AS idComanda,
+          TRIM(c.nomProveedor) AS nomProveedor,
+          TRIM(c.numComanda) AS numComanda
+        FROM comandes c
+        WHERE c.idComanda IN (${Prisma.join(ids)})
+      `;
+      const found = new Set(rows.map((r) => r.idComanda));
+      const missing = ids.filter((id) => !found.has(id));
+      if (missing.length > 0) {
+        return NextResponse.json(
+          { error: "Algún id de línea no existe en la tabla comandes.", missing },
+          { status: 400 },
+        );
+      }
+
+      await prisma.$transaction(
+        rows.map((r) =>
+          prisma.lineaComandesEstado.upsert({
+            where: { idLineaComandes: r.idComanda },
+            create: {
+              idLineaComandes: r.idComanda,
+              nomProveedor: r.nomProveedor,
+              numComanda: r.numComanda,
+              estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
+              recibidoAt: new Date(),
+            },
+            update: {
+              estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
+              recibidoAt: new Date(),
+              nomProveedor: r.nomProveedor,
+              numComanda: r.numComanda,
+            },
+          }),
+        ),
+      );
+
+      return NextResponse.json({
+        ok: true,
+        mensaje: `Recepción confirmada: ${rows.length} línea(s) marcadas como recibidas en empresa.`,
+        actualizadas: rows.length,
+      });
+    }
+
     const res = await prisma.lineaComandesEstado.updateMany({
       where: {
         idLineaComandes: { in: ids },
         estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
       },
       data: {
-        estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
-        recibidoAt: new Date(),
+        estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
+        recibidoAt: null,
       },
     });
     return NextResponse.json({
       ok: true,
-      mensaje: `Actualizadas ${res.count} línea(s) a recibidas en empresa.`,
+      mensaje:
+        res.count > 0
+          ? `Declinadas ${res.count} línea(s). El proveedor podrá volver a marcarlas y enviarlas.`
+          : "Ninguna línea estaba en estado «enviada por proveedor» (naranja). Selecciona solo líneas naranjas para declinar.",
+      actualizadas: res.count,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

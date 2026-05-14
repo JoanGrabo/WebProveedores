@@ -67,8 +67,12 @@ enum EstadoComanda {
 
 /// Estado extendido por línea (PK = idComanda de la tabla legacy `comandes`). No altera `comandes`.
 enum EstadoLineaComandesExt {
+  /// El proveedor ha marcado la línea como enviada; espera revisión de empresa
   ENVIADA_PROVEEDOR
+  /// Un administrador ha confirmado la recepción correcta
   RECIBIDA_EMPRESA
+  /// Un administrador ha declinado (no conforme o no recibida); el proveedor puede volver a enviar
+  RECHAZADA_EMPRESA
 }
 
 model LineaComandesEstado {

@@ -19,13 +19,16 @@ function trimProveedor(p: string | null | undefined): string | null {
 }
 
 /**
- * Marca líneas de `comandes` como enviadas por el proveedor.
- * PROVEEDOR: solo puede enviar líneas de su `usuario.proveedor` (ignora manipulación del body).
+ * Quita el marcado «enviado» (naranja) mientras ningún admin haya confirmado recepción (verde).
+ * Solo PROVEEDOR; borra la fila en `lineas_comandes_estado` solo si estado = ENVIADA_PROVEEDOR.
  */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+  if (user.rol !== Rol.PROVEEDOR) {
+    return NextResponse.json({ error: "Solo los proveedores pueden quitar el envío no confirmado" }, { status: 403 });
   }
 
   let json: unknown;
@@ -40,20 +43,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
   }
 
-  const { numComanda, idLineas } = parsed.data;
-  const nomProveedorBody = parsed.data.nomProveedor.trim();
-
-  const effectiveNom =
-    user.rol === Rol.PROVEEDOR ? trimProveedor(user.proveedor) : trimProveedor(nomProveedorBody);
-
+  const effectiveNom = trimProveedor(user.proveedor);
   if (!effectiveNom) {
     return NextResponse.json({ error: "Proveedor no válido en tu cuenta" }, { status: 403 });
   }
 
-  if (user.rol === Rol.PROVEEDOR && nomProveedorBody !== effectiveNom) {
-    return NextResponse.json({ error: "No puedes enviar en nombre de otro proveedor" }, { status: 403 });
+  const nomProveedorBody = parsed.data.nomProveedor.trim();
+  if (nomProveedorBody !== effectiveNom) {
+    return NextResponse.json({ error: "No puedes modificar líneas de otro proveedor" }, { status: 403 });
   }
 
+  const { numComanda, idLineas } = parsed.data;
   const ids = Array.from(new Set(idLineas));
   if (ids.length === 0) {
     return NextResponse.json({ error: "Selecciona al menos una línea" }, { status: 400 });
@@ -75,58 +75,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const yaCerradas = await prisma.lineaComandesEstado.findMany({
+    const res = await prisma.lineaComandesEstado.deleteMany({
       where: {
         idLineaComandes: { in: ids },
-        estado: {
-          in: [
-            EstadoLineaComandesExt.RECIBIDA_EMPRESA,
-            EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
-          ],
-        },
+        estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
       },
-      select: { idLineaComandes: true, estado: true },
     });
-    const bloqueadas = new Set(yaCerradas.map((r) => r.idLineaComandes));
-    /** Reenvío permitido solo si estaba rechazada o sin fila de estado. */
-    const permitidas = ids.filter((id) => !bloqueadas.has(id));
-    if (permitidas.length === 0) {
-      const soloEnviadas = yaCerradas.every((r) => r.estado === EstadoLineaComandesExt.ENVIADA_PROVEEDOR);
+
+    if (res.count === 0) {
       return NextResponse.json(
         {
-          error: soloEnviadas
-            ? "Esas líneas ya están enviadas (naranja). Esperan confirmación del administrador, o puedes quitar el envío desde el portal si aún no están confirmadas."
-            : "Las líneas seleccionadas ya están recibidas en empresa o no se pueden volver a enviar así.",
+          error:
+            "Ninguna línea seleccionada estaba en «enviada» sin confirmar. Solo puedes quitar el envío de líneas naranjas que aún no haya aceptado un administrador.",
         },
         { status: 400 },
       );
     }
 
-    await prisma.$transaction(
-      permitidas.map((idLineaComandes) =>
-        prisma.lineaComandesEstado.upsert({
-          where: { idLineaComandes },
-          create: {
-            idLineaComandes,
-            nomProveedor: effectiveNom,
-            numComanda: numComanda.trim(),
-            estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
-          },
-          update: {
-            nomProveedor: effectiveNom,
-            numComanda: numComanda.trim(),
-            estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
-            enviadoAt: new Date(),
-          },
-        }),
-      ),
-    );
-
     return NextResponse.json({
       ok: true,
-      mensaje: `Guardado: ${permitidas.length} línea(s) marcadas como enviadas.`,
-      guardadas: permitidas,
-      omitidas: Array.from(bloqueadas),
+      mensaje: `Listo: se quitó el envío de ${res.count} línea(s). Vuelven a estar pendientes.`,
+      quitadas: res.count,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al guardar";

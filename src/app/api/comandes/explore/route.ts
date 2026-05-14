@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 const querySchema = z.discriminatedUnion("step", [
   z.object({ step: z.literal("proveedores") }),
   z.object({ step: z.literal("comandas-globales") }),
+  z.object({ step: z.literal("pendientes-recepcion-admin") }),
   z.object({ step: z.literal("comandas"), proveedor: z.string().min(1) }),
   z.object({
     step: z.literal("lineas"),
@@ -74,6 +75,33 @@ export async function GET(req: NextRequest) {
         numComanda: r.numComanda,
         total: Number(r.total),
         enviadas: Number(r.enviadas),
+      }));
+      return NextResponse.json({ comandas });
+    }
+
+    if (parsed.data.step === "pendientes-recepcion-admin") {
+      if (user.rol !== Rol.ADMIN) {
+        return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
+      }
+      const rows = await prisma.$queryRaw<
+        { nomProveedor: string; numComanda: string; lineasPendientes: bigint }[]
+      >`
+        SELECT
+          TRIM(c.nomProveedor) AS nomProveedor,
+          TRIM(c.numComanda) AS numComanda,
+          CAST(COUNT(*) AS UNSIGNED) AS lineasPendientes
+        FROM comandes c
+        INNER JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
+          AND e.estado = 'ENVIADA_PROVEEDOR'
+        WHERE c.nomProveedor IS NOT NULL AND TRIM(c.nomProveedor) <> ''
+          AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
+        GROUP BY TRIM(c.nomProveedor), TRIM(c.numComanda)
+        ORDER BY nomProveedor ASC, numComanda ASC
+      `;
+      const comandas = rows.map((r) => ({
+        nomProveedor: r.nomProveedor,
+        numComanda: r.numComanda,
+        lineasPendientes: Number(r.lineasPendientes),
       }));
       return NextResponse.json({ comandas });
     }

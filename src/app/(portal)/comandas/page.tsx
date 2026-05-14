@@ -3,7 +3,14 @@ import { ComandasExplorer } from "./ComandasExplorer";
 
 export const dynamic = "force-dynamic";
 
-export default function ComandasPage() {
+type ComandasPageProps = {
+  searchParams: { proveedor?: string; comanda?: string };
+};
+
+export default function ComandasPage({ searchParams }: ComandasPageProps) {
+  const proveedor = typeof searchParams.proveedor === "string" ? searchParams.proveedor : undefined;
+  const comanda = typeof searchParams.comanda === "string" ? searchParams.comanda : undefined;
+
   return (
     <div className="space-y-8">
       <header className="relative overflow-hidden rounded-3xl border border-zinc-200/80 bg-white p-6 shadow-sm ring-1 ring-zinc-100 sm:p-8">
@@ -23,7 +30,7 @@ export default function ComandasPage() {
         </div>
       </header>
 
-      <ComandasExplorer />
+      <ComandasExplorer initialProveedor={proveedor} initialComanda={comanda} />
     </div>
   );
 }
