@@ -148,7 +148,7 @@ export default function DashboardPage() {
             Hola{me ? `, ${me.nombre.split(" ")[0]}` : ""}
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-zinc-600">
-            Desde aquí accedes al explorador de comandas y, si eres administrador, a la gestión de usuarios.
+            Desde aquí accedes al explorador de comandas.
           </p>
         </div>
       </div>
@@ -207,7 +207,7 @@ export default function DashboardPage() {
         <section className="rounded-2xl border border-sky-200/90 bg-sky-50/50 p-6 shadow-sm ring-1 ring-sky-100 sm:p-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-sky-950">Comandas pendientes de cerrar</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-sky-950/85">
-            Comandas de tu proveedor en las que <strong>falta alguna línea por confirmar recepción</strong> en empresa (incluye enviadas en naranja, declinadas que puedes volver a enviar y piezas aún sin marcar). Cuando todas las líneas estén en verde, la comanda deja de aparecer aquí.
+            Comandas en las que <strong>te falta cerrar alguna línea</strong>: pendientes, en naranja (aún sin confirmar en empresa) o declinadas que puedes volver a enviar. Cuando todo esté en verde, la comanda desaparece de esta lista.
           </p>
           {cargandoIncompletasProv ? (
             <p className="mt-4 text-sm text-sky-900/80">Cargando…</p>

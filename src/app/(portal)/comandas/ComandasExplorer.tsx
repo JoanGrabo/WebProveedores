@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 type Linea = {
@@ -508,10 +509,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   </>
                 ) : (
                   <>
-                    Toca líneas <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong> y pulsa{" "}
-                    <strong className="text-orange-700">Enviar selección</strong> para marcarlas en naranja. Si aún no las ha confirmado un administrador,
-                    puedes seleccionar las <strong className="text-orange-800">naranjas</strong> y pulsar <strong className="text-zinc-800">Quitar envío</strong> para
-                    volver a pendiente.
+                    Toca las que estén <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong>, pulsa{" "}
+                    <strong className="text-orange-700">Enviar selección</strong> (naranja). Si una naranja{" "}
+                    <strong className="text-zinc-800">aún no</strong> está confirmada por administración, puedes quitar el envío y volver a pendiente.
                   </>
                 )}
               </p>
@@ -520,7 +520,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   <span className="tabular-nums text-base font-semibold text-zinc-900">
                     {progresoLineasActuales.enviadas}/{progresoLineasActuales.total}
                   </span>
-                  <span>líneas enviadas o recibidas</span>
+                  <span>
+                    {me?.rol === "PROVEEDOR" ? "Enviadas o en verde en empresa" : "líneas enviadas o recibidas"}
+                  </span>
                   {progresoLineasActuales.enviadas === progresoLineasActuales.total && progresoLineasActuales.total > 0 && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
                       Comanda completa
@@ -569,7 +571,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                     }
                     className="w-full shrink-0 rounded-xl border-2 border-zinc-400 bg-white px-6 py-3 text-sm font-semibold text-zinc-800 shadow-sm transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:border-zinc-200 disabled:bg-zinc-100 disabled:text-zinc-400 disabled:shadow-none sm:w-auto"
                   >
-                    {desmarcando ? "Quitando…" : "Quitar envío (sin confirmar)"}
+                    {desmarcando ? "Quitando…" : "Quitar envío"}
                   </button>
                 </div>
               )}
@@ -578,7 +580,13 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
 
           {!proveedorSel || !numSel ? (
             <p className="mt-6 text-sm text-zinc-500">
-              Elige proveedor y comanda en la sección <strong className="text-zinc-700">Proveedor y comanda</strong> más abajo para cargar las líneas aquí.
+              {me?.rol === "ADMIN" ? (
+                <>
+                  Elige proveedor y comanda en <strong className="text-zinc-700">Proveedor y comanda</strong> más abajo para cargar las líneas aquí.
+                </>
+              ) : (
+                <>Elige una comanda en <strong className="text-zinc-700">Tus comandas</strong> más abajo.</>
+              )}
             </p>
           ) : loadingLin ? (
             <p className="mt-6 text-sm text-zinc-500">Cargando líneas…</p>
@@ -696,19 +704,19 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
             <span className="h-2 w-2 rounded-full bg-orange-400" />
-            Línea enviada (proveedor)
+            {me?.rol === "PROVEEDOR" ? "Enviada (esperando confirmación)" : "Línea enviada (proveedor)"}
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
             <span className="h-2 w-2 rounded-full bg-rose-500" />
-            Declinada por empresa (el proveedor puede reenviar)
+            {me?.rol === "PROVEEDOR" ? "Declinada: puedes volver a enviar" : "Declinada por empresa (el proveedor puede reenviar)"}
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
             <span className="h-2 w-2 rounded-full bg-emerald-600" />
-            Línea recibida (empresa)
+            {me?.rol === "PROVEEDOR" ? "Confirmada en empresa" : "Línea recibida (empresa)"}
           </span>
           <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-900">
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Comanda completa (todas las líneas enviadas o recibidas)
+            {me?.rol === "PROVEEDOR" ? "Comanda completa" : "Comanda completa (todas las líneas enviadas o recibidas)"}
           </span>
         </div>
       </div>
@@ -772,12 +780,26 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       )}
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            {me?.rol === "ADMIN"
-              ? "Puedes usar el listado global o elegir aquí proveedor y comanda. Los usuarios se gestionan desde el menú lateral."
-              : "Solo se muestran las comandas de tu empresa (proveedor asignado a tu cuenta)."}
-          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">
+                {me?.rol === "ADMIN" ? "Proveedor y comanda" : "Tus comandas"}
+              </h2>
+              <p className="mt-1 text-xs text-zinc-500">
+                {me?.rol === "ADMIN"
+                  ? "Puedes usar el listado global o elegir aquí proveedor y comanda. Los usuarios se gestionan desde el menú lateral."
+                  : "Solo ves las comandas que te corresponden. Elige el número para cargar las líneas arriba."}
+              </p>
+            </div>
+            {me?.rol === "PROVEEDOR" && (
+              <Link
+                href="/comandas/ayuda"
+                className="shrink-0 text-xs font-medium text-sky-600 hover:text-sky-800"
+              >
+                Guía rápida →
+              </Link>
+            )}
+          </div>
           <div className={`mt-4 grid gap-5 ${me?.rol === "ADMIN" ? "md:grid-cols-2" : ""}`}>
             {me?.rol === "ADMIN" && (
               <div>
@@ -814,12 +836,6 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                 </select>
                 {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
                 {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
-              </div>
-            )}
-            {me?.rol === "PROVEEDOR" && proveedorSel && (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
-                <span className="text-zinc-500">Tu proveedor:</span>{" "}
-                <strong className="text-zinc-900">{proveedorSel}</strong>
               </div>
             )}
             <div className={me?.rol === "ADMIN" ? "" : "md:col-span-2"}>
@@ -861,10 +877,12 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           </div>
         </section>
 
-      <p className="text-center text-xs text-zinc-400">
-        Origen: tabla <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">comandes</code> · Estado envío/recibo:{" "}
-        <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">lineas_comandes_estado</code>
-      </p>
+      {me?.rol === "ADMIN" && (
+        <p className="text-center text-xs text-zinc-400">
+          Origen: tabla <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">comandes</code> · Estado envío/recibo:{" "}
+          <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">lineas_comandes_estado</code>
+        </p>
+      )}
     </div>
   );
 }
