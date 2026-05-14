@@ -140,18 +140,6 @@ export function PortalShell({ children }: { children: ReactNode }) {
               }
             />
           )}
-          {isAdmin && (
-            <NavItem
-              href="/comandes-origen"
-              label="Datos origen"
-              active={pathname?.startsWith("/comandes-origen") ?? false}
-              icon={
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
-                </svg>
-              }
-            />
-          )}
         </nav>
 
         <div className="border-t border-white/5 p-3">

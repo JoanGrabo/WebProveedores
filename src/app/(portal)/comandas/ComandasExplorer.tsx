@@ -254,19 +254,35 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
     }
   }, []);
 
-  const deepLinkAdminAplicado = useRef<string | null>(null);
+  const deepLinkAplicado = useRef<string | null>(null);
   useEffect(() => {
-    if (!sessionReady || !me || me.rol !== "ADMIN") return;
-    const p0 = initialProveedor?.trim();
+    if (!sessionReady || !me) return;
     const n0 = initialComanda?.trim();
-    if (!p0 || !n0) return;
-    const key = `${p0}|${n0}`;
-    if (deepLinkAdminAplicado.current === key) return;
-    deepLinkAdminAplicado.current = key;
-    void (async () => {
-      await cargarComandas(p0);
-      await cargarLineas(p0, n0);
-    })();
+    if (!n0) return;
+
+    if (me.rol === "ADMIN") {
+      const p0 = initialProveedor?.trim();
+      if (!p0) return;
+      const key = `a:${p0}|${n0}`;
+      if (deepLinkAplicado.current === key) return;
+      deepLinkAplicado.current = key;
+      void (async () => {
+        await cargarComandas(p0);
+        await cargarLineas(p0, n0);
+      })();
+      return;
+    }
+
+    if (me.rol === "PROVEEDOR") {
+      const p = me.proveedor?.trim();
+      if (!p) return;
+      const pUrl = initialProveedor?.trim();
+      if (pUrl && pUrl !== p) return;
+      const key = `p:${p}|${n0}`;
+      if (deepLinkAplicado.current === key) return;
+      deepLinkAplicado.current = key;
+      void cargarLineas(p, n0);
+    }
   }, [sessionReady, me, initialProveedor, initialComanda, cargarComandas, cargarLineas]);
 
   const puedeSeleccionarLinea = useCallback(
@@ -479,182 +495,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
 
   return (
     <div className="space-y-8">
-      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Leyenda de líneas</p>
-        <div className="flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-600">
-            <span className="h-2 w-2 rounded-full bg-white ring-1 ring-zinc-300" />
-            Pendiente
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
-            <span className="h-2 w-2 rounded-full bg-orange-400" />
-            Línea enviada (proveedor)
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
-            Declinada por empresa (el proveedor puede reenviar)
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-600" />
-            Línea recibida (empresa)
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            Comanda completa (todas las líneas enviadas o recibidas)
-          </span>
-        </div>
-      </div>
-
-      {me?.rol === "ADMIN" && (
-        <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
-          <p className="mt-1 text-xs text-violet-900/80">
-            Listado global (todos los proveedores). Pulsa <strong>Abrir</strong> para cargar esa comanda en los desplegables y en las líneas.
-          </p>
-          {loadingGlob ? (
-            <p className="mt-4 text-sm text-zinc-600">Cargando listado…</p>
-          ) : errGlob ? (
-            <p className="mt-4 text-sm text-red-600">{errGlob}</p>
-          ) : comandasGlobales.length === 0 ? (
-            <p className="mt-4 text-sm text-zinc-600">No hay comandas en la tabla origen.</p>
-          ) : (
-            <div className="mt-4 max-h-64 overflow-auto rounded-xl border border-violet-200/70 bg-white">
-              <table className="min-w-full text-left text-sm">
-                <thead className="sticky top-0 bg-violet-100/95 text-xs font-semibold uppercase text-violet-950">
-                  <tr>
-                    <th className="px-3 py-2">Proveedor</th>
-                    <th className="px-3 py-2">Comanda</th>
-                    <th className="px-3 py-2">Progreso</th>
-                    <th className="w-24 px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {comandasGlobales.map((row) => {
-                    const completa = row.total > 0 && row.enviadas >= row.total;
-                    return (
-                      <tr key={`${row.nomProveedor}|${row.numComanda}`} className="border-t border-zinc-100">
-                        <td className="px-3 py-2 text-zinc-800">{row.nomProveedor}</td>
-                        <td className="px-3 py-2 font-mono text-zinc-900">{row.numComanda}</td>
-                        <td className="px-3 py-2 tabular-nums text-zinc-700">
-                          {row.enviadas}/{row.total}
-                          {completa ? " ✓" : ""}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700"
-                            onClick={() => {
-                              void (async () => {
-                                await cargarComandas(row.nomProveedor);
-                                await cargarLineas(row.nomProveedor, row.numComanda);
-                              })();
-                            }}
-                          >
-                            Abrir
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
-      <div className="flex flex-col gap-8">
-        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
-          <p className="mt-1 text-xs text-zinc-500">
-            {me?.rol === "ADMIN"
-              ? "Puedes usar el listado global arriba o elegir proveedor y comanda aquí. Los usuarios se gestionan desde el menú lateral."
-              : "Solo se muestran las comandas de tu empresa (proveedor asignado a tu cuenta)."}
-          </p>
-          <div className={`mt-4 grid gap-5 ${me?.rol === "ADMIN" ? "md:grid-cols-2" : ""}`}>
-            {me?.rol === "ADMIN" && (
-              <div>
-                <label htmlFor="sel-proveedor" className="text-xs font-medium text-zinc-600">
-                  Proveedor
-                </label>
-                <select
-                  id="sel-proveedor"
-                  className={selectClass(loadingProv)}
-                  disabled={loadingProv || !!errProv}
-                  value={proveedorSel ?? ""}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) {
-                      setProveedorSel(null);
-                      setComandas([]);
-                      setNumSel(null);
-                      setLineas([]);
-                      setSeleccion(new Set());
-                      setMsgEnvio(null);
-                      setMsgRevision(null);
-                      setErrCom(null);
-                      return;
-                    }
-                    void cargarComandas(v);
-                  }}
-                >
-                  <option value="">— Elige proveedor —</option>
-                  {proveedores.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-                {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
-                {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
-              </div>
-            )}
-            {me?.rol === "PROVEEDOR" && proveedorSel && (
-              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
-                <span className="text-zinc-500">Tu proveedor:</span>{" "}
-                <strong className="text-zinc-900">{proveedorSel}</strong>
-              </div>
-            )}
-            <div className={me?.rol === "ADMIN" ? "" : "md:col-span-2"}>
-              <label htmlFor="sel-comanda" className="text-xs font-medium text-zinc-600">
-                Nº comanda
-              </label>
-              <select
-                id="sel-comanda"
-                className={selectClass(!proveedorSel || loadingCom)}
-                disabled={!proveedorSel || loadingCom || !!errCom}
-                value={numSel ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v || !proveedorSel) {
-                    setNumSel(null);
-                    setLineas([]);
-                    setSeleccion(new Set());
-                    setMsgEnvio(null);
-                    setMsgRevision(null);
-                    return;
-                  }
-                  void cargarLineas(proveedorSel, v);
-                }}
-              >
-                <option value="">— Elige comanda —</option>
-                {comandas.map((c) => {
-                  const completa = c.total > 0 && c.enviadas >= c.total;
-                  const suf = completa ? " ✓" : "";
-                  return (
-                    <option key={c.numComanda} value={c.numComanda}>
-                      {c.numComanda} ({c.enviadas}/{c.total}){suf}
-                    </option>
-                  );
-                })}
-              </select>
-              {proveedorSel && loadingCom && <p className="mt-1 text-xs text-zinc-500">Cargando comandas…</p>}
-              {proveedorSel && errCom && <p className="mt-1 text-xs text-red-600">{errCom}</p>}
-            </div>
-          </div>
-        </section>
-
-        {/* Líneas (compactas) */}
+        {/* Líneas primero: visibles al abrir comanda desde el panel sin scroll */}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -736,7 +577,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           </div>
 
           {!proveedorSel || !numSel ? (
-            <p className="mt-6 text-sm text-zinc-500">Elige proveedor y comanda en los desplegables de arriba.</p>
+            <p className="mt-6 text-sm text-zinc-500">
+              Elige proveedor y comanda en la sección <strong className="text-zinc-700">Proveedor y comanda</strong> más abajo para cargar las líneas aquí.
+            </p>
           ) : loadingLin ? (
             <p className="mt-6 text-sm text-zinc-500">Cargando líneas…</p>
           ) : errLin ? (
@@ -843,7 +686,180 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
             </>
           )}
         </section>
+
+      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Leyenda de líneas</p>
+        <div className="flex flex-wrap gap-3 text-xs">
+          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-600">
+            <span className="h-2 w-2 rounded-full bg-white ring-1 ring-zinc-300" />
+            Pendiente
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
+            <span className="h-2 w-2 rounded-full bg-orange-400" />
+            Línea enviada (proveedor)
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
+            <span className="h-2 w-2 rounded-full bg-rose-500" />
+            Declinada por empresa (el proveedor puede reenviar)
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
+            <span className="h-2 w-2 rounded-full bg-emerald-600" />
+            Línea recibida (empresa)
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-900">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            Comanda completa (todas las líneas enviadas o recibidas)
+          </span>
+        </div>
       </div>
+
+      {me?.rol === "ADMIN" && (
+        <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
+          <p className="mt-1 text-xs text-violet-900/80">
+            Listado global (todos los proveedores). Pulsa <strong>Abrir</strong> para cargar esa comanda en las líneas (arriba) y en los desplegables de más abajo.
+          </p>
+          {loadingGlob ? (
+            <p className="mt-4 text-sm text-zinc-600">Cargando listado…</p>
+          ) : errGlob ? (
+            <p className="mt-4 text-sm text-red-600">{errGlob}</p>
+          ) : comandasGlobales.length === 0 ? (
+            <p className="mt-4 text-sm text-zinc-600">No hay comandas para listar.</p>
+          ) : (
+            <div className="mt-4 max-h-64 overflow-auto rounded-xl border border-violet-200/70 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="sticky top-0 bg-violet-100/95 text-xs font-semibold uppercase text-violet-950">
+                  <tr>
+                    <th className="px-3 py-2">Proveedor</th>
+                    <th className="px-3 py-2">Comanda</th>
+                    <th className="px-3 py-2">Progreso</th>
+                    <th className="w-24 px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {comandasGlobales.map((row) => {
+                    const completa = row.total > 0 && row.enviadas >= row.total;
+                    return (
+                      <tr key={`${row.nomProveedor}|${row.numComanda}`} className="border-t border-zinc-100">
+                        <td className="px-3 py-2 text-zinc-800">{row.nomProveedor}</td>
+                        <td className="px-3 py-2 font-mono text-zinc-900">{row.numComanda}</td>
+                        <td className="px-3 py-2 tabular-nums text-zinc-700">
+                          {row.enviadas}/{row.total}
+                          {completa ? " ✓" : ""}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700"
+                            onClick={() => {
+                              void (async () => {
+                                await cargarComandas(row.nomProveedor);
+                                await cargarLineas(row.nomProveedor, row.numComanda);
+                              })();
+                            }}
+                          >
+                            Abrir
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+        <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
+          <p className="mt-1 text-xs text-zinc-500">
+            {me?.rol === "ADMIN"
+              ? "Puedes usar el listado global o elegir aquí proveedor y comanda. Los usuarios se gestionan desde el menú lateral."
+              : "Solo se muestran las comandas de tu empresa (proveedor asignado a tu cuenta)."}
+          </p>
+          <div className={`mt-4 grid gap-5 ${me?.rol === "ADMIN" ? "md:grid-cols-2" : ""}`}>
+            {me?.rol === "ADMIN" && (
+              <div>
+                <label htmlFor="sel-proveedor" className="text-xs font-medium text-zinc-600">
+                  Proveedor
+                </label>
+                <select
+                  id="sel-proveedor"
+                  className={selectClass(loadingProv)}
+                  disabled={loadingProv || !!errProv}
+                  value={proveedorSel ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) {
+                      setProveedorSel(null);
+                      setComandas([]);
+                      setNumSel(null);
+                      setLineas([]);
+                      setSeleccion(new Set());
+                      setMsgEnvio(null);
+                      setMsgRevision(null);
+                      setErrCom(null);
+                      return;
+                    }
+                    void cargarComandas(v);
+                  }}
+                >
+                  <option value="">— Elige proveedor —</option>
+                  {proveedores.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
+                {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
+              </div>
+            )}
+            {me?.rol === "PROVEEDOR" && proveedorSel && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
+                <span className="text-zinc-500">Tu proveedor:</span>{" "}
+                <strong className="text-zinc-900">{proveedorSel}</strong>
+              </div>
+            )}
+            <div className={me?.rol === "ADMIN" ? "" : "md:col-span-2"}>
+              <label htmlFor="sel-comanda" className="text-xs font-medium text-zinc-600">
+                Nº comanda
+              </label>
+              <select
+                id="sel-comanda"
+                className={selectClass(!proveedorSel || loadingCom)}
+                disabled={!proveedorSel || loadingCom || !!errCom}
+                value={numSel ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v || !proveedorSel) {
+                    setNumSel(null);
+                    setLineas([]);
+                    setSeleccion(new Set());
+                    setMsgEnvio(null);
+                    setMsgRevision(null);
+                    return;
+                  }
+                  void cargarLineas(proveedorSel, v);
+                }}
+              >
+                <option value="">— Elige comanda —</option>
+                {comandas.map((c) => {
+                  const completa = c.total > 0 && c.enviadas >= c.total;
+                  const suf = completa ? " ✓" : "";
+                  return (
+                    <option key={c.numComanda} value={c.numComanda}>
+                      {c.numComanda} ({c.enviadas}/{c.total}){suf}
+                    </option>
+                  );
+                })}
+              </select>
+              {proveedorSel && loadingCom && <p className="mt-1 text-xs text-zinc-500">Cargando comandas…</p>}
+              {proveedorSel && errCom && <p className="mt-1 text-xs text-red-600">{errCom}</p>}
+            </div>
+          </div>
+        </section>
 
       <p className="text-center text-xs text-zinc-400">
         Origen: tabla <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">comandes</code> · Estado envío/recibo:{" "}

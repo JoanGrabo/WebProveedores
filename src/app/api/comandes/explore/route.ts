@@ -10,6 +10,7 @@ const querySchema = z.discriminatedUnion("step", [
   z.object({ step: z.literal("proveedores") }),
   z.object({ step: z.literal("comandas-globales") }),
   z.object({ step: z.literal("pendientes-recepcion-admin") }),
+  z.object({ step: z.literal("comandas-incompletas-proveedor") }),
   z.object({ step: z.literal("comandas"), proveedor: z.string().min(1) }),
   z.object({
     step: z.literal("lineas"),
@@ -102,6 +103,41 @@ export async function GET(req: NextRequest) {
         nomProveedor: r.nomProveedor,
         numComanda: r.numComanda,
         lineasPendientes: Number(r.lineasPendientes),
+      }));
+      return NextResponse.json({ comandas });
+    }
+
+    if (parsed.data.step === "comandas-incompletas-proveedor") {
+      if (user.rol !== Rol.PROVEEDOR) {
+        return NextResponse.json({ error: "Solo proveedores" }, { status: 403 });
+      }
+      const effective = trimProveedor(user.proveedor);
+      if (!effective) {
+        return NextResponse.json(
+          { error: "Tu usuario no tiene proveedor asignado. Contacta con administración." },
+          { status: 403 },
+        );
+      }
+      const rows = await prisma.$queryRaw<
+        { numComanda: string; total: bigint; recibidas: bigint }[]
+      >`
+        SELECT
+          TRIM(c.numComanda) AS numComanda,
+          CAST(COUNT(*) AS UNSIGNED) AS total,
+          CAST(COALESCE(SUM(IF(e.estado = 'RECIBIDA_EMPRESA', 1, 0)), 0) AS UNSIGNED) AS recibidas
+        FROM comandes c
+        LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
+        WHERE TRIM(c.nomProveedor) = ${effective}
+          AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
+        GROUP BY TRIM(c.numComanda)
+        HAVING recibidas < total
+        ORDER BY numComanda ASC
+      `;
+      const comandas = rows.map((r) => ({
+        numComanda: r.numComanda,
+        total: Number(r.total),
+        recibidas: Number(r.recibidas),
+        sinConfirmar: Number(r.total) - Number(r.recibidas),
       }));
       return NextResponse.json({ comandas });
     }

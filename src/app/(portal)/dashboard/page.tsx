@@ -57,11 +57,22 @@ type PendienteRecepcion = {
   lineasPendientes: number;
 };
 
+type ComandaIncompletaProveedor = {
+  numComanda: string;
+  total: number;
+  recibidas: number;
+  sinConfirmar: number;
+};
+
 export default function DashboardPage() {
   const [me, setMe] = useState<Me | null>(null);
   const [pendientesRecepcion, setPendientesRecepcion] = useState<PendienteRecepcion[]>([]);
   const [cargandoPendientes, setCargandoPendientes] = useState(false);
   const [errPendientes, setErrPendientes] = useState<string | null>(null);
+
+  const [comandasIncompletasProv, setComandasIncompletasProv] = useState<ComandaIncompletaProveedor[]>([]);
+  const [cargandoIncompletasProv, setCargandoIncompletasProv] = useState(false);
+  const [errIncompletasProv, setErrIncompletasProv] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -98,6 +109,34 @@ export default function DashboardPage() {
     };
   }, [admin]);
 
+  const proveedorConCuenta = me?.rol === "PROVEEDOR" && !!me.proveedor?.trim();
+
+  useEffect(() => {
+    if (!proveedorConCuenta) return;
+    let cancel = false;
+    void (async () => {
+      setCargandoIncompletasProv(true);
+      setErrIncompletasProv(null);
+      try {
+        const r = await fetch("/api/comandes/explore?step=comandas-incompletas-proveedor");
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error ?? "Error al cargar comandas");
+        if (cancel) return;
+        setComandasIncompletasProv(Array.isArray(j.comandas) ? j.comandas : []);
+      } catch (e) {
+        if (!cancel) {
+          setErrIncompletasProv(e instanceof Error ? e.message : "Error");
+          setComandasIncompletasProv([]);
+        }
+      } finally {
+        if (!cancel) setCargandoIncompletasProv(false);
+      }
+    })();
+    return () => {
+      cancel = true;
+    };
+  }, [proveedorConCuenta]);
+
   return (
     <div className="space-y-10">
       <div className="relative overflow-hidden rounded-3xl border border-zinc-200/80 bg-white p-8 shadow-sm ring-1 ring-zinc-100 sm:p-10">
@@ -108,7 +147,7 @@ export default function DashboardPage() {
             Hola{me ? `, ${me.nombre.split(" ")[0]}` : ""}
           </h1>
           <p className="mt-3 max-w-2xl text-base leading-relaxed text-zinc-600">
-            Desde aquí accedes al explorador de comandas y, si eres administrador, a la gestión de usuarios y a la vista de datos origen.
+            Desde aquí accedes al explorador de comandas y, si eres administrador, a la gestión de usuarios.
           </p>
         </div>
       </div>
@@ -163,6 +202,57 @@ export default function DashboardPage() {
         </section>
       )}
 
+      {proveedorConCuenta && (
+        <section className="rounded-2xl border border-sky-200/90 bg-sky-50/50 p-6 shadow-sm ring-1 ring-sky-100 sm:p-8">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-sky-950">Comandas pendientes de cerrar</h2>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-sky-950/85">
+            Comandas de tu proveedor en las que <strong>falta alguna línea por confirmar recepción</strong> en empresa (incluye enviadas en naranja, declinadas que puedes volver a enviar y piezas aún sin marcar). Cuando todas las líneas estén en verde, la comanda deja de aparecer aquí.
+          </p>
+          {cargandoIncompletasProv ? (
+            <p className="mt-4 text-sm text-sky-900/80">Cargando…</p>
+          ) : errIncompletasProv ? (
+            <p className="mt-4 text-sm text-red-700">{errIncompletasProv}</p>
+          ) : comandasIncompletasProv.length === 0 ? (
+            <p className="mt-4 text-sm text-sky-900/75">No tienes comandas abiertas por confirmación: todo está recibido en empresa o no hay comandas asignadas.</p>
+          ) : (
+            <div className="mt-5 overflow-x-auto rounded-xl border border-sky-200/80 bg-white">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-sky-100/90 text-xs font-semibold uppercase text-sky-950">
+                  <tr>
+                    <th className="px-4 py-3">Comanda</th>
+                    <th className="px-4 py-3">Líneas totales</th>
+                    <th className="px-4 py-3">Confirmadas en empresa</th>
+                    <th className="px-4 py-3">Sin confirmar</th>
+                    <th className="w-28 px-4 py-3" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {comandasIncompletasProv.map((row) => {
+                    const href = `/comandas?comanda=${encodeURIComponent(row.numComanda)}`;
+                    return (
+                      <tr key={row.numComanda} className="border-t border-zinc-100">
+                        <td className="px-4 py-3 font-mono text-zinc-900">{row.numComanda}</td>
+                        <td className="px-4 py-3 tabular-nums text-zinc-700">{row.total}</td>
+                        <td className="px-4 py-3 tabular-nums text-zinc-700">{row.recibidas}</td>
+                        <td className="px-4 py-3 tabular-nums font-medium text-orange-800">{row.sinConfirmar}</td>
+                        <td className="px-4 py-3">
+                          <Link
+                            href={href}
+                            className="inline-flex rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-700"
+                          >
+                            Abrir
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
       <div>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wider text-zinc-500">Accesos rápidos</h2>
         <div className="grid gap-5 sm:grid-cols-2">
@@ -186,19 +276,6 @@ export default function DashboardPage() {
               icon={
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-                </svg>
-              }
-            />
-          )}
-          {admin && (
-            <HubCard
-              href="/comandes-origen"
-              title="Datos origen"
-              desc="Consulta las últimas filas de la tabla legacy comandes (solo lectura, administradores)."
-              gradient="bg-emerald-400"
-              icon={
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                 </svg>
               }
             />

@@ -19,8 +19,10 @@ export default function ComandasPage({ searchParams }: ComandasPageProps) {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Explorador</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Comandas</h1>
           <p className="mt-3 max-w-3xl text-sm leading-relaxed text-zinc-600">
-            Elige proveedor y comanda, revisa el listado global (admin) y gestiona líneas. Las pendientes se marcan tocando la tarjeta;{" "}
-            <strong className="text-orange-600">Enviar selección</strong> persiste en base de datos.
+            Las <strong className="text-zinc-800">líneas</strong> de la comanda cargan primero (justo debajo), para poder actuar al abrir una comanda desde el panel sin bajar la página. Más abajo: leyenda de colores, listado global (solo admin) y desplegables de proveedor y comanda.
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-zinc-600">
+            Las pendientes se marcan tocando la tarjeta; <strong className="text-orange-600">Enviar selección</strong> persiste en base de datos.
           </p>
           <p className="mt-4 text-sm">
             <Link href="/dashboard" className="font-medium text-sky-600 hover:text-sky-800">

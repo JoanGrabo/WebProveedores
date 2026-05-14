@@ -49,7 +49,6 @@ export async function middleware(request: NextRequest) {
     }
 
     if (
-      pathname.startsWith("/comandes-origen") ||
       pathname.startsWith("/api/comandes/recibir") ||
       pathname.startsWith("/admin") ||
       pathname.startsWith("/api/admin")
@@ -80,8 +79,6 @@ export const config = {
     "/dashboard/:path*",
     "/comandas",
     "/comandas/:path*",
-    "/comandes-origen",
-    "/comandes-origen/:path*",
     "/admin",
     "/admin/:path*",
     "/api/auth/me",
