@@ -16,7 +16,7 @@ const bodySchema = z.object({
  * Panel empresa (solo ADMIN):
  * - aceptar: marca líneas como recibidas en empresa. Puede ser aunque el proveedor no haya
  *   pulsado «enviado» (crea/actualiza fila en RECIBIDA).
- * - rechazar: solo líneas en ENVIADA_PROVEEDOR (naranja) → RECHAZADA_EMPRESA.
+ * - rechazar: líneas en ENVIADA_PROVEEDOR (naranja) o RECIBIDA_EMPRESA (verde) → RECHAZADA_EMPRESA.
  */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
@@ -90,7 +90,9 @@ export async function POST(req: NextRequest) {
     const res = await prisma.lineaComandesEstado.updateMany({
       where: {
         idLineaComandes: { in: ids },
-        estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
+        estado: {
+          in: [EstadoLineaComandesExt.ENVIADA_PROVEEDOR, EstadoLineaComandesExt.RECIBIDA_EMPRESA],
+        },
       },
       data: {
         estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
@@ -102,7 +104,7 @@ export async function POST(req: NextRequest) {
       mensaje:
         res.count > 0
           ? `Declinadas ${res.count} línea(s). El proveedor podrá volver a marcarlas y enviarlas.`
-          : "Ninguna línea estaba en estado «enviada por proveedor» (naranja). Selecciona solo líneas naranjas para declinar.",
+          : "Ninguna línea estaba en naranja (enviada) ni en verde (confirmada). Selecciona líneas en esos estados para declinar.",
       actualizadas: res.count,
     });
   } catch (e) {

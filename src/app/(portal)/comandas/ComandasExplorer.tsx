@@ -51,7 +51,9 @@ function qs(params: Record<string, string>) {
 /** Estilo de tarjeta de línea (clic para seleccionar según rol y estado). */
 function cardTone(l: Linea, seleccionado: boolean, rol: Me["rol"] | null): string {
   if (l.estadoPortal === "RECIBIDA_EMPRESA") {
-    return "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
+    const base = "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
+    if (seleccionado && rol === "ADMIN") return `${base} ring-2 ring-emerald-300`;
+    return base;
   }
   if (l.estadoPortal === "RECHAZADA_EMPRESA") {
     const base = "border-l-[6px] border-rose-500 bg-rose-50/95 shadow-sm";
@@ -321,7 +323,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   const puedeSeleccionarLinea = useCallback(
     (l: Linea) => {
       if (!me) return false;
-      if (me.rol === "ADMIN") return l.estadoPortal !== "RECIBIDA_EMPRESA";
+      if (me.rol === "ADMIN") return true;
       return (
         l.estadoPortal == null ||
         l.estadoPortal === "RECHAZADA_EMPRESA" ||
@@ -362,9 +364,14 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
     ).length;
   }, [lineas, seleccion]);
 
-  const idLineasNaranjasSeleccionAdmin = useMemo(() => {
+  /** Líneas que admin puede declinar: enviadas (naranja) o ya confirmadas (verde). */
+  const idLineasDeclinarAdmin = useMemo(() => {
     return lineas
-      .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
+      .filter(
+        (l) =>
+          seleccion.has(l.idComanda) &&
+          (l.estadoPortal === "ENVIADA_PROVEEDOR" || l.estadoPortal === "RECIBIDA_EMPRESA"),
+      )
       .map((l) => l.idComanda);
   }, [lineas, seleccion]);
 
@@ -450,7 +457,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       const idLineas =
         accion === "rechazar"
           ? lineas
-              .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
+              .filter(
+                (l) =>
+                  seleccion.has(l.idComanda) &&
+                  (l.estadoPortal === "ENVIADA_PROVEEDOR" || l.estadoPortal === "RECIBIDA_EMPRESA"),
+              )
               .map((l) => l.idComanda)
           : Array.from(seleccion);
       if (idLineas.length === 0) {
@@ -458,7 +469,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           type: "err",
           text:
             accion === "rechazar"
-              ? "Selecciona líneas naranjas (enviadas por el proveedor) para declinar."
+              ? "Selecciona líneas en naranja (enviadas) o en verde (confirmadas) para declinar."
               : "Selecciona al menos una línea.",
         });
         return;
@@ -573,7 +584,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                     type="button"
                     onClick={() => void revisionAdmin("rechazar")}
                     disabled={
-                      !proveedorSel || !numSel || revisando || idLineasNaranjasSeleccionAdmin.length === 0
+                      !proveedorSel || !numSel || revisando || idLineasDeclinarAdmin.length === 0
                     }
                     className="w-full rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
                   >
@@ -726,6 +737,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
           <ComandasGlobalesDataTable
+            variant="violet"
             rows={comandasGlobales}
             loading={loadingGlob}
             error={errGlob}

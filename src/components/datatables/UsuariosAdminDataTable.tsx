@@ -57,6 +57,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
 
     void (async () => {
       await import("datatables.net-dt/css/dataTables.dataTables.css");
+      await import("@/components/datatables/datatables-portal.css");
       const { default: DataTable } = await import("datatables.net-dt");
       if (cancelled) return;
       const h = hostRef.current;
@@ -66,7 +67,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
       apiRef.current = null;
       h.innerHTML = "";
       const table = document.createElement("table");
-      table.className = "display compact stripe hover w-full text-left text-sm";
+      table.className = "display stripe hover nowrap w-full text-left text-sm text-zinc-800";
       h.appendChild(table);
 
       const opts: Config = {
@@ -107,7 +108,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
             searchable: false,
             className: "w-20",
             render: (_d: unknown, _t: string, row: UsuarioRow) =>
-              `<button type="button" class="text-xs font-semibold text-sky-700 hover:underline dt-user-edit" data-id="${escAttr(row.id)}">Editar</button>`,
+              `<button type="button" class="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-sky-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 dt-user-edit" data-id="${escAttr(row.id)}">Editar</button>`,
           },
         ],
         order: [[5, "desc"]],
@@ -148,5 +149,10 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
     return <p className="mt-4 text-sm text-zinc-600">No hay usuarios.</p>;
   }
 
-  return <div ref={hostRef} className="mt-4 min-h-[4rem] overflow-x-auto" />;
+  return (
+    <div
+      ref={hostRef}
+      className="portal-datatable mt-4 min-h-[4rem] overflow-x-auto rounded-xl border border-zinc-200/90 bg-white p-3 shadow-sm"
+    />
+  );
 }

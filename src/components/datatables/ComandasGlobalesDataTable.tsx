@@ -20,9 +20,11 @@ type Props = {
   loading: boolean;
   error: string | null;
   onOpen: (nomProveedor: string, numComanda: string) => void;
+  /** Cabecera con tinte violeta (bloque comandas admin) */
+  variant?: "violet" | "default";
 };
 
-export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Props) {
+export function ComandasGlobalesDataTable({ rows, loading, error, onOpen, variant = "default" }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const apiRef = useRef<{ destroy: () => void } | null>(null);
   const onOpenRef = useRef(onOpen);
@@ -51,6 +53,7 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
 
     void (async () => {
       await import("datatables.net-dt/css/dataTables.dataTables.css");
+      await import("@/components/datatables/datatables-portal.css");
       const { default: DataTable } = await import("datatables.net-dt");
       if (cancelled) return;
       const h = hostRef.current;
@@ -60,8 +63,7 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
       apiRef.current = null;
       h.innerHTML = "";
       const table = document.createElement("table");
-      table.className =
-        "display compact stripe hover w-full text-left text-sm text-zinc-800 [&_thead]:bg-violet-100 [&_thead]:text-violet-950";
+      table.className = "display stripe hover nowrap w-full text-left text-sm text-zinc-800";
       h.appendChild(table);
 
       const opts: Config = {
@@ -84,7 +86,7 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
             searchable: false,
             className: "w-24",
             render: (_d, _t, row: ComandaGlobalRow) =>
-              `<button type="button" class="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700 dt-glob-open" data-prov="${escAttr(row.nomProveedor)}" data-com="${escAttr(row.numComanda)}">Abrir</button>`,
+              `<button type="button" class="inline-flex items-center justify-center rounded-lg bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-500/40 dt-glob-open" data-prov="${escAttr(row.nomProveedor)}" data-com="${escAttr(row.numComanda)}">Abrir</button>`,
           },
         ],
         order: [[1, "asc"]],
@@ -113,7 +115,7 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
         listenerHost.innerHTML = "";
       }
     };
-  }, [rows, loading, error]);
+  }, [rows, loading, error, variant]);
 
   if (loading) {
     return <p className="mt-2 text-sm text-zinc-600">Cargando…</p>;
@@ -125,5 +127,15 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
     return <p className="mt-2 text-sm text-zinc-600">Sin comandas.</p>;
   }
 
-  return <div ref={hostRef} className="mt-2 min-h-[4rem]" />;
+  const skin =
+    variant === "violet"
+      ? "portal-datatable portal-datatable--violet-head"
+      : "portal-datatable";
+
+  return (
+    <div
+      ref={hostRef}
+      className={`${skin} mt-2 min-h-[4rem] overflow-x-auto rounded-xl border border-zinc-200/90 bg-white p-3 shadow-sm`}
+    />
+  );
 }

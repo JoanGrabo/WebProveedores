@@ -1,10 +1,10 @@
-/** Textos mínimos en español para DataTables (búsqueda, paginación). */
+/** Textos DataTables en español */
 export const dtLanguageEs = {
-  search: "Buscar:",
-  lengthMenu: "Mostrar _MENU_",
-  info: "_TOTAL_ filas",
-  infoEmpty: "Sin datos",
-  infoFiltered: "(filtrado de _MAX_)",
-  zeroRecords: "Sin coincidencias",
+  search: "Buscar",
+  lengthMenu: "Filas _MENU_",
+  info: "_START_–_END_ de _TOTAL_",
+  infoEmpty: "Sin filas",
+  infoFiltered: "(de _MAX_ en total)",
+  zeroRecords: "Nada coincide con la búsqueda",
   paginate: { first: "«", previous: "‹", next: "›", last: "»" },
 };
