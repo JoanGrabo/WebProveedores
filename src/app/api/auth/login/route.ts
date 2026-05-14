@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createSessionToken } from "@/lib/session-jwt";
 import { prisma } from "@/lib/prisma";
-import { SESSION_COOKIE, SESSION_MAX_AGE_SEC } from "@/lib/auth-constants";
+import { SESSION_COOKIE, SESSION_MAX_AGE_SEC, sessionCookieSecure } from "@/lib/auth-constants";
 
 const bodySchema = z.object({
   email: z.string().email().trim().toLowerCase(),
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: sessionCookieSecure(),
       sameSite: "lax",
       path: "/",
       maxAge: SESSION_MAX_AGE_SEC,
