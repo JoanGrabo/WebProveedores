@@ -19,6 +19,7 @@
   "dependencies": {
     "@prisma/client": "6.19.0",
     "bcryptjs": "^3.0.3",
+    "datatables.net-dt": "^2.3.8",
     "jose": "^6.2.3",
     "jsonwebtoken": "^9.0.3",
     "next": "14.2.35",

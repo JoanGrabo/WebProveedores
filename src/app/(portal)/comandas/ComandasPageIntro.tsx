@@ -39,14 +39,5 @@ export function ComandasPageIntro() {
     );
   }
 
-  return (
-    <div className="mt-3 max-w-3xl space-y-2 text-sm leading-relaxed text-zinc-600">
-      <p>
-        Las <strong className="text-zinc-800">líneas</strong> de la comanda cargan primero (justo debajo), para poder actuar al abrir una comanda desde el panel sin bajar la página. Más abajo: leyenda de colores, listado global y desplegables de proveedor y comanda.
-      </p>
-      <p>
-        Las pendientes se marcan tocando la tarjeta; <strong className="text-orange-600">Enviar selección</strong> persiste en base de datos.
-      </p>
-    </div>
-  );
+  return null;
 }

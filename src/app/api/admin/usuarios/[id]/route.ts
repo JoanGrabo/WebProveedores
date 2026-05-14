@@ -30,6 +30,31 @@ function trimProv(p: string | null | undefined): string | null {
 
 type RouteCtx = { params: { id: string } };
 
+export async function DELETE(req: NextRequest, ctx: RouteCtx) {
+  const user = await getSessionUser(req);
+  if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (user.rol !== Rol.ADMIN) return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
+
+  const id = ctx.params.id;
+  if (!id) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
+  if (id === user.id) {
+    return NextResponse.json({ error: "No puedes eliminar tu propia cuenta" }, { status: 400 });
+  }
+
+  const existing = await prisma.usuario.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+
+  if (existing.rol === Rol.ADMIN) {
+    const admins = await prisma.usuario.count({ where: { rol: Rol.ADMIN } });
+    if (admins <= 1) {
+      return NextResponse.json({ error: "No se puede eliminar el único administrador" }, { status: 400 });
+    }
+  }
+
+  await prisma.usuario.delete({ where: { id } });
+  return NextResponse.json({ ok: true });
+}
+
 export async function PATCH(req: NextRequest, ctx: RouteCtx) {
   const user = await getSessionUser(req);
   if (!user) return NextResponse.json({ error: "No autorizado" }, { status: 401 });

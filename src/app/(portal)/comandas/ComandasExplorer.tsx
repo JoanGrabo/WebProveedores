@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ComandasGlobalesDataTable } from "@/components/datatables/ComandasGlobalesDataTable";
 
 type Linea = {
   idComanda: number;
@@ -75,6 +76,37 @@ function selectClass(disabled: boolean) {
       ? "cursor-not-allowed border-zinc-200 bg-zinc-100 text-zinc-400"
       : "border-zinc-300 bg-white text-zinc-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/25",
   ].join(" ");
+}
+
+function LineasLeyenda({ rol }: { rol: "ADMIN" | "PROVEEDOR" }) {
+  const prov = rol === "PROVEEDOR";
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Leyenda de líneas</p>
+      <div className="flex flex-wrap gap-3 text-xs">
+        <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-600">
+          <span className="h-2 w-2 rounded-full bg-white ring-1 ring-zinc-300" />
+          Pendiente
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
+          <span className="h-2 w-2 rounded-full bg-orange-400" />
+          {prov ? "Enviada (esperando confirmación)" : "Línea enviada (proveedor)"}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
+          <span className="h-2 w-2 rounded-full bg-rose-500" />
+          {prov ? "Declinada: puedes volver a enviar" : "Declinada por empresa (el proveedor puede reenviar)"}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
+          <span className="h-2 w-2 rounded-full bg-emerald-600" />
+          {prov ? "Confirmada en empresa" : "Línea recibida (empresa)"}
+        </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-900">
+          <span className="h-2 w-2 rounded-full bg-emerald-500" />
+          {prov ? "Comanda completa" : "Comanda completa (todas las líneas enviadas o recibidas)"}
+        </span>
+      </div>
+    </div>
+  );
 }
 
 type ComandasExplorerProps = {
@@ -496,25 +528,20 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
 
   return (
     <div className="space-y-8">
+      {me?.rol === "ADMIN" && <LineasLeyenda rol="ADMIN" />}
+
         {/* Líneas primero: visibles al abrir comanda desde el panel sin scroll */}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Líneas</h2>
-              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
-                {me?.rol === "ADMIN" ? (
-                  <>
-                    Puedes marcar <strong className="text-emerald-800">recepción confirmada</strong> en cualquier línea que aún no esté en verde (también si el proveedor no marcó envío). Para{" "}
-                    <strong className="text-rose-800">declinar</strong>, selecciona solo filas <strong className="text-orange-800">naranjas</strong>.
-                  </>
-                ) : (
-                  <>
-                    Toca las que estén <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong>, pulsa{" "}
-                    <strong className="text-orange-700">Enviar selección</strong> (naranja). Si una naranja{" "}
-                    <strong className="text-zinc-800">aún no</strong> está confirmada por administración, puedes quitar el envío y volver a pendiente.
-                  </>
-                )}
-              </p>
+              {me?.rol === "PROVEEDOR" && (
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
+                  Toca las que estén <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong>, pulsa{" "}
+                  <strong className="text-orange-700">Enviar selección</strong> (naranja). Si una naranja{" "}
+                  <strong className="text-zinc-800">aún no</strong> está confirmada por administración, puedes quitar el envío y volver a pendiente.
+                </p>
+              )}
               {progresoLineasActuales && (
                 <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
                   <span className="tabular-nums text-base font-semibold text-zinc-900">
@@ -579,12 +606,8 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           </div>
 
           {!proveedorSel || !numSel ? (
-            <p className="mt-6 text-sm text-zinc-500">
-              {me?.rol === "ADMIN" ? (
-                <>
-                  Elige proveedor y comanda en <strong className="text-zinc-700">Proveedor y comanda</strong> más abajo para cargar las líneas aquí.
-                </>
-              ) : (
+            <p className="mt-6 text-xs text-zinc-500">
+              {me?.rol === "ADMIN" ? "Proveedor y comanda abajo." : (
                 <>Elige una comanda en <strong className="text-zinc-700">Tus comandas</strong> más abajo.</>
               )}
             </p>
@@ -618,9 +641,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   {msgEnvio.text}
                 </div>
               )}
-              <p className="mt-3 text-xs text-zinc-500">
-                {numSeleccionados > 0 ? `${numSeleccionados} línea(s) seleccionadas.` : "Nada seleccionado."}
-              </p>
+              {me?.rol === "PROVEEDOR" && (
+                <p className="mt-3 text-xs text-zinc-500">
+                  {numSeleccionados > 0 ? `${numSeleccionados} línea(s) seleccionadas.` : "Nada seleccionado."}
+                </p>
+              )}
               <div className="mt-3 max-h-[min(70vh,40rem)] space-y-1.5 overflow-y-auto pr-1">
                 {lineas.map((l) => {
                   const sel = seleccion.has(l.idComanda);
@@ -695,87 +720,22 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           )}
         </section>
 
-      <div className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-zinc-500">Leyenda de líneas</p>
-        <div className="flex flex-wrap gap-3 text-xs">
-          <span className="inline-flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-600">
-            <span className="h-2 w-2 rounded-full bg-white ring-1 ring-zinc-300" />
-            Pendiente
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
-            <span className="h-2 w-2 rounded-full bg-orange-400" />
-            {me?.rol === "PROVEEDOR" ? "Enviada (esperando confirmación)" : "Línea enviada (proveedor)"}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
-            <span className="h-2 w-2 rounded-full bg-rose-500" />
-            {me?.rol === "PROVEEDOR" ? "Declinada: puedes volver a enviar" : "Declinada por empresa (el proveedor puede reenviar)"}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-600" />
-            {me?.rol === "PROVEEDOR" ? "Confirmada en empresa" : "Línea recibida (empresa)"}
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-3 py-1 text-emerald-900">
-            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-            {me?.rol === "PROVEEDOR" ? "Comanda completa" : "Comanda completa (todas las líneas enviadas o recibidas)"}
-          </span>
-        </div>
-      </div>
+      {me?.rol === "PROVEEDOR" && <LineasLeyenda rol="PROVEEDOR" />}
 
       {me?.rol === "ADMIN" && (
         <section className="rounded-2xl border border-violet-200 bg-violet-50/50 p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-violet-900">Todas las comandas</h2>
-          <p className="mt-1 text-xs text-violet-900/80">
-            Listado global (todos los proveedores). Pulsa <strong>Abrir</strong> para cargar esa comanda en las líneas (arriba) y en los desplegables de más abajo.
-          </p>
-          {loadingGlob ? (
-            <p className="mt-4 text-sm text-zinc-600">Cargando listado…</p>
-          ) : errGlob ? (
-            <p className="mt-4 text-sm text-red-600">{errGlob}</p>
-          ) : comandasGlobales.length === 0 ? (
-            <p className="mt-4 text-sm text-zinc-600">No hay comandas para listar.</p>
-          ) : (
-            <div className="mt-4 max-h-64 overflow-auto rounded-xl border border-violet-200/70 bg-white">
-              <table className="min-w-full text-left text-sm">
-                <thead className="sticky top-0 bg-violet-100/95 text-xs font-semibold uppercase text-violet-950">
-                  <tr>
-                    <th className="px-3 py-2">Proveedor</th>
-                    <th className="px-3 py-2">Comanda</th>
-                    <th className="px-3 py-2">Progreso</th>
-                    <th className="w-24 px-3 py-2" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {comandasGlobales.map((row) => {
-                    const completa = row.total > 0 && row.enviadas >= row.total;
-                    return (
-                      <tr key={`${row.nomProveedor}|${row.numComanda}`} className="border-t border-zinc-100">
-                        <td className="px-3 py-2 text-zinc-800">{row.nomProveedor}</td>
-                        <td className="px-3 py-2 font-mono text-zinc-900">{row.numComanda}</td>
-                        <td className="px-3 py-2 tabular-nums text-zinc-700">
-                          {row.enviadas}/{row.total}
-                          {completa ? " ✓" : ""}
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700"
-                            onClick={() => {
-                              void (async () => {
-                                await cargarComandas(row.nomProveedor);
-                                await cargarLineas(row.nomProveedor, row.numComanda);
-                              })();
-                            }}
-                          >
-                            Abrir
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ComandasGlobalesDataTable
+            rows={comandasGlobales}
+            loading={loadingGlob}
+            error={errGlob}
+            onOpen={(prov, com) => {
+              void (async () => {
+                await cargarComandas(prov);
+                await cargarLineas(prov, com);
+              })();
+            }}
+          />
         </section>
       )}
 
@@ -785,11 +745,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">
                 {me?.rol === "ADMIN" ? "Proveedor y comanda" : "Tus comandas"}
               </h2>
-              <p className="mt-1 text-xs text-zinc-500">
-                {me?.rol === "ADMIN"
-                  ? "Puedes usar el listado global o elegir aquí proveedor y comanda. Los usuarios se gestionan desde el menú lateral."
-                  : "Solo ves las comandas que te corresponden. Elige el número para cargar las líneas arriba."}
-              </p>
+              {me?.rol === "PROVEEDOR" && (
+                <p className="mt-1 text-xs text-zinc-500">
+                  Solo ves las comandas que te corresponden. Elige el número para cargar las líneas arriba.
+                </p>
+              )}
             </div>
             {me?.rol === "PROVEEDOR" && (
               <Link
@@ -876,13 +836,6 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
             </div>
           </div>
         </section>
-
-      {me?.rol === "ADMIN" && (
-        <p className="text-center text-xs text-zinc-400">
-          Origen: tabla <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">comandes</code> · Estado envío/recibo:{" "}
-          <code className="rounded bg-zinc-200 px-1 py-0.5 text-zinc-700">lineas_comandes_estado</code>
-        </p>
-      )}
     </div>
   );
 }

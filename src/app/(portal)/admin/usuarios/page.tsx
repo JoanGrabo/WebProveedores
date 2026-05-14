@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
+import { UsuariosAdminDataTable } from "@/components/datatables/UsuariosAdminDataTable";
 
 const inputClass =
   "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-inner focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300";
@@ -53,6 +54,7 @@ export default function AdminUsuariosPage() {
   const [editProveedor, setEditProveedor] = useState("");
   const [editUsuario, setEditUsuario] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
 
   const loadUsuarios = useCallback(async () => {
@@ -144,6 +146,25 @@ export default function AdminUsuariosPage() {
     }
   }
 
+  async function onDeleteUsuario() {
+    if (!edit || !me) return;
+    if (edit.id === me.id) return;
+    if (!window.confirm(`¿Eliminar definitivamente a ${edit.email}? Esta acción no se puede deshacer.`)) return;
+    setEditErr(null);
+    setDeleting(true);
+    try {
+      const r = await fetch(`/api/admin/usuarios/${edit.id}`, { method: "DELETE" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error ?? "Error al eliminar");
+      setEdit(null);
+      await loadUsuarios();
+    } catch (e) {
+      setEditErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   async function onSaveEdit(e: FormEvent) {
     e.preventDefault();
     if (!edit) return;
@@ -191,15 +212,12 @@ export default function AdminUsuariosPage() {
     <div className="mx-auto max-w-4xl">
       <header className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Administración</p>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Usuarios del portal</h1>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Usuarios</h1>
         {me && (
           <p className="mt-2 text-xs text-zinc-500">
             Sesión: <span className="font-mono text-zinc-700">{me.usuario ? `${me.usuario} · ` : ""}{me.email}</span>
           </p>
         )}
-        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
-          Crea cuentas para cada proveedor (rol proveedor + nombre de proveedor igual que en comandes). Los administradores ven todas las comandas.
-        </p>
         <p className="mt-4 text-sm">
           <Link href="/dashboard" className="font-medium text-sky-600 hover:text-sky-800">
             ← Volver al panel
@@ -294,60 +312,7 @@ export default function AdminUsuariosPage() {
 
       <section className="mt-8 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Usuarios registrados</h2>
-        {loadingList ? (
-          <p className="mt-4 text-sm text-zinc-500">Cargando…</p>
-        ) : listErr ? (
-          <p className="mt-4 text-sm text-red-600">{listErr}</p>
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border-b border-zinc-200 text-xs font-semibold uppercase text-zinc-500">
-                <tr>
-                  <th className="py-2 pr-4">Usuario</th>
-                  <th className="py-2 pr-4">Email</th>
-                  <th className="py-2 pr-4">Nombre</th>
-                  <th className="py-2 pr-4">Rol</th>
-                  <th className="py-2 pr-4">Proveedor</th>
-                  <th className="py-2 pr-4">Alta</th>
-                  <th className="py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map((u) => (
-                  <tr key={u.id} className="border-b border-zinc-100">
-                    <td className="py-2 pr-4 font-mono text-xs text-zinc-800">{u.usuario ?? "—"}</td>
-                    <td className="py-2 pr-4 font-mono text-xs text-zinc-800">{u.email}</td>
-                    <td className="py-2 pr-4 text-zinc-800">{u.nombre}</td>
-                    <td className="py-2 pr-4">
-                      <span
-                        className={
-                          u.rol === "ADMIN"
-                            ? "rounded bg-violet-100 px-2 py-0.5 text-xs font-medium text-violet-800"
-                            : "rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700"
-                        }
-                      >
-                        {u.rol}
-                      </span>
-                    </td>
-                    <td className="py-2 pr-4 text-zinc-600">{u.proveedor ?? "—"}</td>
-                    <td className="py-2 pr-4 text-xs text-zinc-500">
-                      {new Date(u.createdAt).toLocaleDateString("es-ES")}
-                    </td>
-                    <td className="py-2">
-                      <button
-                        type="button"
-                        onClick={() => openEdit(u)}
-                        className="text-xs font-semibold text-sky-700 hover:underline"
-                      >
-                        Editar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <UsuariosAdminDataTable rows={usuarios} loading={loadingList} error={listErr} onEdit={openEdit} />
       </section>
 
       {edit && (
@@ -416,18 +381,32 @@ export default function AdminUsuariosPage() {
               <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
-                  disabled={savingEdit}
+                  disabled={savingEdit || deleting}
                   className="rounded-xl bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
                 >
                   {savingEdit ? "Guardando…" : "Guardar"}
                 </button>
                 <button
                   type="button"
+                  disabled={deleting}
                   onClick={() => setEdit(null)}
                   className="rounded-xl border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
                 >
                   Cancelar
                 </button>
+              </div>
+              <div className="mt-6 flex flex-wrap items-center gap-3 border-t border-zinc-100 pt-4">
+                <button
+                  type="button"
+                  disabled={deleting || savingEdit || !me || edit.id === me.id}
+                  onClick={() => void onDeleteUsuario()}
+                  className="rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-semibold text-red-800 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {deleting ? "Eliminando…" : "Eliminar usuario"}
+                </button>
+                {me && edit.id === me.id ? (
+                  <span className="text-xs text-zinc-500">No puedes eliminar tu propia cuenta.</span>
+                ) : null}
               </div>
             </form>
           </div>

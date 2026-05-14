@@ -222,9 +222,9 @@ export default function DashboardPage() {
                   <tr>
                     <th className="px-4 py-3">Comanda</th>
                     <th className="px-4 py-3">Líneas totales</th>
-                    <th className="px-4 py-3">Por hacer</th>
-                    <th className="px-4 py-3">Enviadas</th>
                     <th className="px-4 py-3">Confirmadas en empresa</th>
+                    <th className="px-4 py-3">Enviadas</th>
+                    <th className="px-4 py-3">Por hacer</th>
                     <th className="w-28 px-4 py-3" />
                   </tr>
                 </thead>
@@ -235,9 +235,9 @@ export default function DashboardPage() {
                       <tr key={row.numComanda} className="border-t border-zinc-100">
                         <td className="px-4 py-3 font-mono text-zinc-900">{row.numComanda}</td>
                         <td className="px-4 py-3 tabular-nums text-zinc-700">{row.total}</td>
-                        <td className="px-4 py-3 tabular-nums font-medium text-zinc-700">{row.porHacer}</td>
-                        <td className="px-4 py-3 tabular-nums font-medium text-orange-800">{row.enviadas}</td>
                         <td className="px-4 py-3 tabular-nums font-medium text-emerald-800">{row.confirmadas}</td>
+                        <td className="px-4 py-3 tabular-nums font-medium text-orange-800">{row.enviadas}</td>
+                        <td className="px-4 py-3 tabular-nums font-medium text-zinc-700">{row.porHacer}</td>
                         <td className="px-4 py-3">
                           <Link
                             href={href}
