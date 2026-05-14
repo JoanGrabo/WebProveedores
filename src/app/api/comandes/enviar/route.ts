@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { EstadoLineaComandesExt } from "@prisma/client";
+import { getSessionUser } from "@/lib/auth";
+import { EstadoLineaComandesExt, Rol } from "@prisma/client";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -11,11 +12,22 @@ const bodySchema = z.object({
   idLineas: z.array(z.number().int().positive()),
 });
 
+function trimProveedor(p: string | null | undefined): string | null {
+  if (p == null) return null;
+  const t = p.trim();
+  return t.length ? t : null;
+}
+
 /**
  * Marca líneas de `comandes` como enviadas por el proveedor.
- * Persiste en `lineas_comandes_estado` (no modifica la tabla `comandes`).
+ * PROVEEDOR: solo puede enviar líneas de su `usuario.proveedor` (ignora manipulación del body).
  */
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
   let json: unknown;
   try {
     json = await req.json();
@@ -28,7 +40,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
   }
 
-  const { nomProveedor, numComanda, idLineas } = parsed.data;
+  const { numComanda, idLineas } = parsed.data;
+  const nomProveedorBody = parsed.data.nomProveedor.trim();
+
+  const effectiveNom =
+    user.rol === Rol.PROVEEDOR ? trimProveedor(user.proveedor) : trimProveedor(nomProveedorBody);
+
+  if (!effectiveNom) {
+    return NextResponse.json({ error: "Proveedor no válido en tu cuenta" }, { status: 403 });
+  }
+
+  if (user.rol === Rol.PROVEEDOR && nomProveedorBody !== effectiveNom) {
+    return NextResponse.json({ error: "No puedes enviar en nombre de otro proveedor" }, { status: 403 });
+  }
+
   const ids = Array.from(new Set(idLineas));
   if (ids.length === 0) {
     return NextResponse.json({ error: "Selecciona al menos una línea" }, { status: 400 });
@@ -38,8 +63,8 @@ export async function POST(req: NextRequest) {
     const allLineas = await prisma.$queryRaw<{ idComanda: number }[]>`
       SELECT idComanda
       FROM comandes
-      WHERE TRIM(nomProveedor) = ${nomProveedor}
-        AND TRIM(numComanda) = ${numComanda}
+      WHERE TRIM(nomProveedor) = ${effectiveNom}
+        AND TRIM(numComanda) = ${numComanda.trim()}
     `;
     const validSet = new Set(allLineas.map((r) => r.idComanda));
     const invalid = ids.filter((id) => !validSet.has(id));
@@ -72,13 +97,13 @@ export async function POST(req: NextRequest) {
           where: { idLineaComandes },
           create: {
             idLineaComandes,
-            nomProveedor,
-            numComanda,
+            nomProveedor: effectiveNom,
+            numComanda: numComanda.trim(),
             estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
           },
           update: {
-            nomProveedor,
-            numComanda,
+            nomProveedor: effectiveNom,
+            numComanda: numComanda.trim(),
             estado: EstadoLineaComandesExt.ENVIADA_PROVEEDOR,
             enviadoAt: new Date(),
           },

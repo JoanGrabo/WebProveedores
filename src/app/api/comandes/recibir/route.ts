@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { EstadoLineaComandesExt } from "@prisma/client";
+import { getSessionUser } from "@/lib/auth";
+import { EstadoLineaComandesExt, Rol } from "@prisma/client";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -10,10 +11,14 @@ const bodySchema = z.object({
 });
 
 /**
- * Panel empresa: marca líneas como recibidas (futuro / pruebas).
- * No modifica `comandes`; actualiza `lineas_comandes_estado`.
+ * Panel empresa: marca líneas como recibidas.
+ * Solo ADMIN (también validado en middleware).
  */
 export async function POST(req: NextRequest) {
+  const user = await getSessionUser(req);
+  if (!user || user.rol !== Rol.ADMIN) {
+    return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
+  }
   let json: unknown;
   try {
     json = await req.json();

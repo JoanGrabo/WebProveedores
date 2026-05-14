@@ -13,7 +13,12 @@ export default function Home() {
       </div>
       <ul className="space-y-3 text-slate-300">
         <li>
-          Ver comandas del portal:{" "}
+          <Link href="/login" className="text-amber-400 underline-offset-4 hover:underline">
+            Iniciar sesión (proveedores / admin)
+          </Link>
+        </li>
+        <li>
+          Ver comandas (requiere login):{" "}
           <Link href="/comandas" className="text-amber-400 underline-offset-4 hover:underline">
             /comandas
           </Link>

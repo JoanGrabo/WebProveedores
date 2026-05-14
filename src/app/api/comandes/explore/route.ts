@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getSessionUser } from "@/lib/auth";
+import { Rol } from "@prisma/client";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +16,18 @@ const querySchema = z.discriminatedUnion("step", [
   }),
 ]);
 
+function trimProveedor(p: string | null | undefined): string | null {
+  if (p == null) return null;
+  const t = p.trim();
+  return t.length ? t : null;
+}
+
 export async function GET(req: NextRequest) {
+  const user = await getSessionUser(req);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
   const sp = req.nextUrl.searchParams;
   const raw = Object.fromEntries(sp.entries());
   const parsed = querySchema.safeParse(raw);
@@ -24,6 +37,9 @@ export async function GET(req: NextRequest) {
 
   try {
     if (parsed.data.step === "proveedores") {
+      if (user.rol !== Rol.ADMIN) {
+        return NextResponse.json({ error: "Solo administradores pueden listar todos los proveedores" }, { status: 403 });
+      }
       const rows = await prisma.$queryRaw<{ nomProveedor: string }[]>`
         SELECT DISTINCT TRIM(nomProveedor) AS nomProveedor
         FROM comandes
@@ -34,7 +50,20 @@ export async function GET(req: NextRequest) {
     }
 
     if (parsed.data.step === "comandas") {
-      const proveedor = parsed.data.proveedor;
+      const effective =
+        user.rol === Rol.PROVEEDOR
+          ? trimProveedor(user.proveedor)
+          : trimProveedor(parsed.data.proveedor);
+      if (!effective) {
+        return NextResponse.json(
+          { error: "Tu usuario no tiene proveedor asignado. Contacta con administración." },
+          { status: 403 },
+        );
+      }
+      if (user.rol === Rol.PROVEEDOR && trimProveedor(parsed.data.proveedor) !== effective) {
+        return NextResponse.json({ error: "No autorizado para ese proveedor" }, { status: 403 });
+      }
+
       const rows = await prisma.$queryRaw<{ numComanda: string; total: bigint; enviadas: bigint }[]>`
         SELECT
           TRIM(c.numComanda) AS numComanda,
@@ -42,7 +71,7 @@ export async function GET(req: NextRequest) {
           CAST(COALESCE(SUM(IF(e.estado IN ('ENVIADA_PROVEEDOR', 'RECIBIDA_EMPRESA'), 1, 0)), 0) AS UNSIGNED) AS enviadas
         FROM comandes c
         LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
-        WHERE TRIM(c.nomProveedor) = ${proveedor}
+        WHERE TRIM(c.nomProveedor) = ${effective}
         GROUP BY TRIM(c.numComanda)
         HAVING numComanda IS NOT NULL AND numComanda <> ''
         ORDER BY numComanda ASC
@@ -55,7 +84,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ comandas });
     }
 
-    const { proveedor, numComanda } = parsed.data;
+    const numComanda = parsed.data.numComanda.trim();
+    const effectiveProv =
+      user.rol === Rol.PROVEEDOR
+        ? trimProveedor(user.proveedor)
+        : trimProveedor(parsed.data.proveedor);
+    if (!effectiveProv) {
+      return NextResponse.json({ error: "Proveedor no válido" }, { status: 403 });
+    }
+    if (user.rol === Rol.PROVEEDOR && trimProveedor(parsed.data.proveedor) !== effectiveProv) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    }
+
     const lineas = await prisma.$queryRaw<
       {
         idComanda: number;
@@ -93,7 +133,7 @@ export async function GET(req: NextRequest) {
         e.recibido_at AS recibidoAt
       FROM comandes c
       LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
-      WHERE TRIM(c.nomProveedor) = ${proveedor}
+      WHERE TRIM(c.nomProveedor) = ${effectiveProv}
         AND TRIM(c.numComanda) = ${numComanda}
       ORDER BY c.idComanda ASC
     `;

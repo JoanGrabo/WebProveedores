@@ -27,6 +27,14 @@ type ComandaResumen = {
   enviadas: number;
 };
 
+type Me = {
+  id: string;
+  email: string;
+  nombre: string;
+  rol: "ADMIN" | "PROVEEDOR";
+  proveedor: string | null;
+};
+
 function qs(params: Record<string, string>) {
   return new URLSearchParams(params).toString();
 }
@@ -55,6 +63,10 @@ function selectClass(disabled: boolean) {
 }
 
 export function ComandasExplorer() {
+  const [me, setMe] = useState<Me | null>(null);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [bootErr, setBootErr] = useState<string | null>(null);
+
   const [proveedores, setProveedores] = useState<string[]>([]);
   const [loadingProv, setLoadingProv] = useState(true);
   const [errProv, setErrProv] = useState<string | null>(null);
@@ -76,17 +88,60 @@ export function ComandasExplorer() {
   useEffect(() => {
     let cancel = false;
     (async () => {
-      setLoadingProv(true);
-      setErrProv(null);
+      setBootErr(null);
       try {
-        const r = await fetch(`/api/comandes/explore?${qs({ step: "proveedores" })}`);
-        const j = await r.json();
-        if (!r.ok) throw new Error(j.error ?? "Error al cargar proveedores");
-        if (!cancel) setProveedores(j.proveedores ?? []);
-      } catch (e) {
-        if (!cancel) setErrProv(e instanceof Error ? e.message : "Error");
+        const r = await fetch("/api/auth/me");
+        if (r.status === 401) {
+          window.location.href = "/login?from=" + encodeURIComponent("/comandas");
+          return;
+        }
+        const user = (await r.json()) as Me;
+        if (cancel) return;
+        setMe(user);
+
+        if (user.rol === "PROVEEDOR") {
+          const p = user.proveedor?.trim();
+          if (!p) {
+            setBootErr("Tu cuenta no tiene el nombre de proveedor asignado. Contacta con administración.");
+            setProveedores([]);
+            setLoadingProv(false);
+            return;
+          }
+          setProveedorSel(p);
+          setProveedores([]);
+          setLoadingProv(false);
+          setLoadingCom(true);
+          setErrCom(null);
+          try {
+            const rc = await fetch(`/api/comandes/explore?${qs({ step: "comandas", proveedor: p })}`);
+            const jc = await rc.json();
+            if (!rc.ok) throw new Error(jc.error ?? "Error al cargar comandas");
+            setComandas(Array.isArray(jc.comandas) ? jc.comandas : []);
+          } catch (e) {
+            setErrCom(e instanceof Error ? e.message : "Error");
+            setComandas([]);
+          } finally {
+            setLoadingCom(false);
+          }
+        } else {
+          setLoadingProv(true);
+          setErrProv(null);
+          try {
+            const r2 = await fetch(`/api/comandes/explore?step=proveedores`);
+            const j2 = await r2.json();
+            if (!r2.ok) throw new Error(j2.error ?? "Error al cargar proveedores");
+            setProveedores(j2.proveedores ?? []);
+          } catch (e) {
+            setErrProv(e instanceof Error ? e.message : "Error");
+            setProveedores([]);
+          } finally {
+            setLoadingProv(false);
+          }
+        }
+      } catch {
+        if (!cancel) setBootErr("No se pudo verificar la sesión.");
       } finally {
-        if (!cancel) setLoadingProv(false);
+        if (!cancel) setSessionReady(true);
       }
     })();
     return () => {
@@ -197,6 +252,11 @@ export function ComandasExplorer() {
     }
   }, [proveedorSel, numSel, seleccion, cargarLineas, fetchResumenComandas]);
 
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  }
+
   const progresoLineasActuales = useMemo(() => {
     if (lineas.length === 0) return null;
     const enviadas = lineas.filter(
@@ -204,6 +264,29 @@ export function ComandasExplorer() {
     ).length;
     return { enviadas, total: lineas.length };
   }, [lineas]);
+
+  if (!sessionReady) {
+    return (
+      <div className="rounded-2xl border border-zinc-200 bg-white p-10 text-center text-sm text-zinc-500 shadow-sm">
+        Cargando sesión…
+      </div>
+    );
+  }
+
+  if (bootErr) {
+    return (
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{bootErr}</div>
+        <button
+          type="button"
+          onClick={() => void logout()}
+          className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+        >
+          Cerrar sesión
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -226,53 +309,82 @@ export function ComandasExplorer() {
             Comanda completa (todas las líneas enviadas o recibidas)
           </span>
         </div>
-        <Link href="/" className="text-sm font-medium text-sky-700 hover:text-sky-900">
-          ← Inicio
-        </Link>
+        <div className="flex flex-wrap items-center gap-3">
+          {me && (
+            <span className="max-w-[200px] truncate text-sm text-zinc-600" title={me.email}>
+              <span className="font-medium text-zinc-900">{me.nombre}</span>
+              {me.rol === "ADMIN" && (
+                <span className="ml-1.5 rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-semibold text-violet-800">
+                  Admin
+                </span>
+              )}
+            </span>
+          )}
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="text-sm font-medium text-zinc-600 underline-offset-2 hover:text-zinc-900 hover:underline"
+          >
+            Salir
+          </button>
+          <Link href="/" className="text-sm font-medium text-sky-700 hover:text-sky-900">
+            Inicio
+          </Link>
+        </div>
       </div>
 
       <div className="flex flex-col gap-8">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Proveedor y comanda</h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Con login el proveedor vendrá fijado y solo verás tus comandas; estos desplegables son para la prueba.
+            {me?.rol === "ADMIN"
+              ? "Como administrador puedes elegir cualquier proveedor. Los proveedores solo ven sus propias comandas."
+              : "Solo se muestran las comandas de tu empresa (proveedor asignado a tu cuenta)."}
           </p>
-          <div className="mt-4 grid gap-5 md:grid-cols-2">
-            <div>
-              <label htmlFor="sel-proveedor" className="text-xs font-medium text-zinc-600">
-                Proveedor
-              </label>
-              <select
-                id="sel-proveedor"
-                className={selectClass(loadingProv)}
-                disabled={loadingProv || !!errProv}
-                value={proveedorSel ?? ""}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!v) {
-                    setProveedorSel(null);
-                    setComandas([]);
-                    setNumSel(null);
-                    setLineas([]);
-                    setSeleccion(new Set());
-                    setMsgEnvio(null);
-                    setErrCom(null);
-                    return;
-                  }
-                  void cargarComandas(v);
-                }}
-              >
-                <option value="">— Elige proveedor —</option>
-                {proveedores.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-              {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
-              {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
-            </div>
-            <div>
+          <div className={`mt-4 grid gap-5 ${me?.rol === "ADMIN" ? "md:grid-cols-2" : ""}`}>
+            {me?.rol === "ADMIN" && (
+              <div>
+                <label htmlFor="sel-proveedor" className="text-xs font-medium text-zinc-600">
+                  Proveedor
+                </label>
+                <select
+                  id="sel-proveedor"
+                  className={selectClass(loadingProv)}
+                  disabled={loadingProv || !!errProv}
+                  value={proveedorSel ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) {
+                      setProveedorSel(null);
+                      setComandas([]);
+                      setNumSel(null);
+                      setLineas([]);
+                      setSeleccion(new Set());
+                      setMsgEnvio(null);
+                      setErrCom(null);
+                      return;
+                    }
+                    void cargarComandas(v);
+                  }}
+                >
+                  <option value="">— Elige proveedor —</option>
+                  {proveedores.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+                {loadingProv && <p className="mt-1 text-xs text-zinc-500">Cargando lista…</p>}
+                {errProv && <p className="mt-1 text-xs text-red-600">{errProv}</p>}
+              </div>
+            )}
+            {me?.rol === "PROVEEDOR" && proveedorSel && (
+              <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
+                <span className="text-zinc-500">Tu proveedor:</span>{" "}
+                <strong className="text-zinc-900">{proveedorSel}</strong>
+              </div>
+            )}
+            <div className={me?.rol === "ADMIN" ? "" : "md:col-span-2"}>
               <label htmlFor="sel-comanda" className="text-xs font-medium text-zinc-600">
                 Nº comanda
               </label>
