@@ -1,6 +1,20 @@
 #!/usr/bin/env bash
-# Ejecutar en el VPS Ubuntu dentro del directorio del proyecto (después de git pull).
+# Ejecutar en el VPS Ubuntu (puede llamarse desde cualquier sitio: hace cd al repo).
+# Tras git pull: instala deps, Prisma, build y reinicio PM2 seguro (scripts/pm2-fix.sh).
 set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
+ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$ROOT"
+
+echo "==> Directorio del proyecto: $ROOT"
+if [ -d .git ]; then
+  echo "==> Rama y último commit:"
+  git rev-parse --abbrev-ref HEAD 2>/dev/null || true
+  git log -1 --oneline 2>/dev/null || true
+else
+  echo "!! No hay carpeta .git: no puedes actualizar código con git pull en esta ruta."
+fi
 
 echo "==> Instalación de dependencias de producción"
 npm ci
@@ -22,9 +36,7 @@ if [ "$(id -u)" -eq 0 ]; then
   fi
 fi
 
-echo "==> Reiniciar aplicación PM2 (ajusta el nombre si lo cambiaste)"
-pm2 restart web-proveedores || pm2 start ecosystem.config.cjs
+echo "==> Reinicio seguro PM2 (puerto libre + delete + start + health)"
+bash "$SCRIPT_DIR/pm2-fix.sh"
 
-echo "Listo. Comprueba: pm2 status y curl -I http://127.0.0.1:3000"
-echo "Si la web se ve sin estilos: recarga forzada (Ctrl+F5). Si el build fue como root y PM2 es otro usuario:"
-echo "  chown -R USUARIO:USUARIO \"$(pwd)\""
+echo "Listo. Si la web no cambia: git pull, Ctrl+F5, y revisa que Nginx apunte al puerto PORT de .env"

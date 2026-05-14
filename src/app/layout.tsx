@@ -13,8 +13,8 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Portal comandas — Proveedores",
-  description: "Gestión de comandas empresa–proveedor",
+  title: "SaaS control piezas",
+  description: "Portal de comandas y control de piezas entre empresa y proveedores",
 };
 
 export default function RootLayout({

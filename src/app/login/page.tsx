@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 
@@ -46,7 +45,7 @@ function LoginForm() {
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-sky-500/30">
             P
           </div>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">Portal proveedores</p>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Iniciar sesión</h1>
           <p className="mt-2 text-sm text-zinc-400">Cada proveedor ve solo sus comandas. Tras entrar irás al panel.</p>
         </div>
@@ -95,11 +94,7 @@ function LoginForm() {
             </button>
           </form>
 
-          <p className="mt-8 text-center text-sm text-zinc-500">
-            <Link href="/" className="font-medium text-sky-400 hover:text-sky-300">
-              Volver al inicio
-            </Link>
-          </p>
+          <p className="mt-8 text-center text-xs text-zinc-600">SaaS control piezas · acceso seguro</p>
         </div>
       </main>
     </div>

@@ -89,8 +89,8 @@ export function PortalShell({ children }: { children: ReactNode }) {
               P
             </span>
             <div className="leading-tight">
-              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Portal</p>
-              <p className="text-sm font-semibold text-white">Proveedores</p>
+              <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">SaaS</p>
+              <p className="text-sm font-semibold text-white">Control piezas</p>
             </div>
           </Link>
           <button
@@ -169,11 +169,11 @@ export function PortalShell({ children }: { children: ReactNode }) {
           )}
           <div className="flex gap-2">
             <Link
-              href="/"
+              href="/dashboard"
               className="flex-1 rounded-xl border border-white/10 px-3 py-2 text-center text-xs font-medium text-zinc-400 hover:bg-white/5 hover:text-white"
               onClick={() => setNavOpen(false)}
             >
-              Web pública
+              Panel
             </Link>
             <button
               type="button"
@@ -198,7 +198,7 @@ export function PortalShell({ children }: { children: ReactNode }) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="truncate text-sm font-semibold text-zinc-800">Portal proveedores</span>
+          <span className="truncate text-sm font-semibold text-zinc-800">SaaS control piezas</span>
           <span className="w-10" />
         </header>
 

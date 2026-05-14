@@ -11,6 +11,23 @@ function redirectLogin(request: NextRequest) {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  /** Login: público; si ya hay sesión válida, al panel. */
+  if (pathname === "/login" || pathname.startsWith("/login/")) {
+    const token = request.cookies.get(SESSION_COOKIE)?.value;
+    if (token) {
+      try {
+        const claims = await verifySessionToken(token);
+        if (claims) {
+          return NextResponse.redirect(new URL("/dashboard", request.url));
+        }
+      } catch {
+        // cookie inválida: deja entrar al formulario de login
+      }
+    }
+    return NextResponse.next();
+  }
+
   const token = request.cookies.get(SESSION_COOKIE)?.value;
 
   if (!token) {
@@ -24,6 +41,11 @@ export async function middleware(request: NextRequest) {
     const claims = await verifySessionToken(token);
     if (!claims) {
       throw new Error("invalid");
+    }
+
+    /** Raíz: siempre al hub autenticado. */
+    if (pathname === "/") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
     }
 
     if (
@@ -51,6 +73,9 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/",
+    "/login",
+    "/login/:path*",
     "/dashboard",
     "/dashboard/:path*",
     "/comandas",
@@ -59,7 +84,9 @@ export const config = {
     "/comandes-origen/:path*",
     "/admin",
     "/admin/:path*",
+    "/api/auth/me",
     "/api/comandes/:path*",
     "/api/admin/:path*",
+    "/api/health",
   ],
 };
