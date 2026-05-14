@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 import type { Config } from "datatables.net";
-import DataTable from "datatables.net-dt";
-import "datatables.net-dt/css/dataTables.dataTables.css";
 import { dtLanguageEs } from "./dt-language-es";
 
 export type ComandaGlobalRow = {
@@ -31,8 +29,8 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
   onOpenRef.current = onOpen;
 
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host || loading) return;
+    let cancelled = false;
+    let listenerHost: HTMLDivElement | null = null;
 
     const onClick = (e: MouseEvent) => {
       const t = e.target as HTMLElement | null;
@@ -43,61 +41,77 @@ export function ComandasGlobalesDataTable({ rows, loading, error, onOpen }: Prop
       if (prov != null && com != null) onOpenRef.current(prov, com);
     };
 
-    host.addEventListener("click", onClick);
-
-    if (error || rows.length === 0) {
+    const host = hostRef.current;
+    if (!host || loading || error || rows.length === 0) {
       apiRef.current?.destroy();
       apiRef.current = null;
-      host.innerHTML = "";
-      return () => host.removeEventListener("click", onClick);
+      if (host) host.innerHTML = "";
+      return;
     }
 
-    apiRef.current?.destroy();
-    apiRef.current = null;
-    host.innerHTML = "";
-    const table = document.createElement("table");
-    table.className =
-      "display compact stripe hover w-full text-left text-sm text-zinc-800 [&_thead]:bg-violet-100 [&_thead]:text-violet-950";
-    host.appendChild(table);
+    void (async () => {
+      await import("datatables.net-dt/css/dataTables.dataTables.css");
+      const { default: DataTable } = await import("datatables.net-dt");
+      if (cancelled) return;
+      const h = hostRef.current;
+      if (!h) return;
 
-    const opts: Config = {
-      data: rows,
-      columns: [
-        { data: "nomProveedor", title: "Proveedor" },
-        { data: "numComanda", title: "Comanda", className: "font-mono" },
-        {
-          data: null,
-          title: "Progreso",
-          render: (_d, _t, row: ComandaGlobalRow) => {
-            const ok = row.total > 0 && row.enviadas >= row.total;
-            return `${row.enviadas}/${row.total}${ok ? " ✓" : ""}`;
-          },
-        },
-        {
-          data: null,
-          title: "",
-          orderable: false,
-          searchable: false,
-          className: "w-24",
-          render: (_d, _t, row: ComandaGlobalRow) =>
-            `<button type="button" class="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700 dt-glob-open" data-prov="${escAttr(row.nomProveedor)}" data-com="${escAttr(row.numComanda)}">Abrir</button>`,
-        },
-      ],
-      order: [[1, "asc"]],
-      pageLength: 25,
-      lengthMenu: [10, 25, 50, 100, 250],
-      language: dtLanguageEs,
-      autoWidth: false,
-    };
-
-    const api = new DataTable(table, opts);
-    apiRef.current = api as unknown as { destroy: () => void };
-
-    return () => {
-      host.removeEventListener("click", onClick);
       apiRef.current?.destroy();
       apiRef.current = null;
-      host.innerHTML = "";
+      h.innerHTML = "";
+      const table = document.createElement("table");
+      table.className =
+        "display compact stripe hover w-full text-left text-sm text-zinc-800 [&_thead]:bg-violet-100 [&_thead]:text-violet-950";
+      h.appendChild(table);
+
+      const opts: Config = {
+        data: rows,
+        columns: [
+          { data: "nomProveedor", title: "Proveedor" },
+          { data: "numComanda", title: "Comanda", className: "font-mono" },
+          {
+            data: null,
+            title: "Progreso",
+            render: (_d, _t, row: ComandaGlobalRow) => {
+              const ok = row.total > 0 && row.enviadas >= row.total;
+              return `${row.enviadas}/${row.total}${ok ? " ✓" : ""}`;
+            },
+          },
+          {
+            data: null,
+            title: "",
+            orderable: false,
+            searchable: false,
+            className: "w-24",
+            render: (_d, _t, row: ComandaGlobalRow) =>
+              `<button type="button" class="rounded-lg bg-sky-600 px-2 py-1 text-xs font-semibold text-white hover:bg-sky-700 dt-glob-open" data-prov="${escAttr(row.nomProveedor)}" data-com="${escAttr(row.numComanda)}">Abrir</button>`,
+          },
+        ],
+        order: [[1, "asc"]],
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100, 250],
+        language: dtLanguageEs,
+        autoWidth: false,
+      };
+
+      const api = new DataTable(table, opts) as unknown as { destroy: () => void };
+      if (cancelled) {
+        api.destroy();
+        return;
+      }
+      apiRef.current = api;
+      listenerHost = h;
+      listenerHost.addEventListener("click", onClick);
+    })();
+
+    return () => {
+      cancelled = true;
+      apiRef.current?.destroy();
+      apiRef.current = null;
+      if (listenerHost) {
+        listenerHost.removeEventListener("click", onClick);
+        listenerHost.innerHTML = "";
+      }
     };
   }, [rows, loading, error]);
 
