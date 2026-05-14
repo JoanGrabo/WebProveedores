@@ -580,9 +580,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         </div>
       )}
 
-        {/* Líneas: orden visual con flex order (admin: leyenda → proveedor/comanda → líneas → globales) */}
+        {/* Líneas: orden visual con flex order (admin: leyenda → proveedor/comanda → líneas → globales; proveedor: tus comandas → líneas → leyenda) */}
         <section
-          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-3" : "order-1"}`}
+          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-3" : "order-2"}`}
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -660,7 +660,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           {!proveedorSel || !numSel ? (
             <p className="mt-6 text-xs text-zinc-500">
               {me?.rol === "ADMIN" ? "Elige proveedor y comanda arriba." : (
-                <>Elige una comanda en <strong className="text-zinc-700">Tus comandas</strong> más abajo.</>
+                <>Elige una comanda en <strong className="text-zinc-700">Tus comandas</strong> arriba.</>
               )}
             </p>
           ) : loadingLin ? (
@@ -773,7 +773,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         </section>
 
       {me?.rol === "PROVEEDOR" && (
-        <div className="order-2 shrink-0">
+        <div className="order-3 shrink-0">
           <LineasLeyenda rol="PROVEEDOR" />
         </div>
       )}
@@ -797,7 +797,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       )}
 
         <section
-          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-2" : "order-3"}`}
+          className={`rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm ${me?.rol === "ADMIN" ? "order-2" : "order-1"}`}
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -806,7 +806,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
               </h2>
               {me?.rol === "PROVEEDOR" && (
                 <p className="mt-1 text-xs text-zinc-500">
-                  Solo ves las comandas que te corresponden. Elige el número para cargar las líneas arriba.
+                  Solo ves las comandas que te corresponden. Elige el número para cargar las líneas abajo.
                 </p>
               )}
             </div>
