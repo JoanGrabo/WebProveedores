@@ -119,25 +119,39 @@ export async function GET(req: NextRequest) {
         );
       }
       const rows = await prisma.$queryRaw<
-        { numComanda: string; total: bigint; recibidas: bigint }[]
+        {
+          numComanda: string;
+          total: bigint;
+          porHacer: bigint;
+          enviadas: bigint;
+          confirmadas: bigint;
+        }[]
       >`
         SELECT
           TRIM(c.numComanda) AS numComanda,
           CAST(COUNT(*) AS UNSIGNED) AS total,
-          CAST(COALESCE(SUM(IF(e.estado = 'RECIBIDA_EMPRESA', 1, 0)), 0) AS UNSIGNED) AS recibidas
+          CAST(
+            COALESCE(
+              SUM(IF(e.estado IS NULL OR e.estado = 'RECHAZADA_EMPRESA', 1, 0)),
+              0
+            ) AS UNSIGNED
+          ) AS porHacer,
+          CAST(COALESCE(SUM(IF(e.estado = 'ENVIADA_PROVEEDOR', 1, 0)), 0) AS UNSIGNED) AS enviadas,
+          CAST(COALESCE(SUM(IF(e.estado = 'RECIBIDA_EMPRESA', 1, 0)), 0) AS UNSIGNED) AS confirmadas
         FROM comandes c
         LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
         WHERE TRIM(c.nomProveedor) = ${effective}
           AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
         GROUP BY TRIM(c.numComanda)
-        HAVING recibidas < total
+        HAVING confirmadas < total
         ORDER BY numComanda ASC
       `;
       const comandas = rows.map((r) => ({
         numComanda: r.numComanda,
         total: Number(r.total),
-        recibidas: Number(r.recibidas),
-        sinConfirmar: Number(r.total) - Number(r.recibidas),
+        porHacer: Number(r.porHacer),
+        enviadas: Number(r.enviadas),
+        confirmadas: Number(r.confirmadas),
       }));
       return NextResponse.json({ comandas });
     }
