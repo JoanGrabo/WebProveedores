@@ -90,6 +90,8 @@ model Usuario {
   id        String   @id @default(cuid())
   nombre    String
   email     String   @unique
+  /// Nombre de acceso (minúsculas); puede usarse en login junto con el email
+  usuario   String?  @unique @db.VarChar(64) @map("usuario")
   password  String
   rol       Rol
   /// Debe coincidir con nomProveedor de la comanda para filtrar vistas de proveedor

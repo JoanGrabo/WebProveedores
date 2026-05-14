@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 
+const inputClass =
+  "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-500 shadow-inner focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300";
+const selectClass =
+  "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 shadow-inner focus:border-violet-400 focus:outline-none focus:ring-1 focus:ring-violet-300";
+
 type Me = {
   id: string;
   email: string;
+  usuario: string | null;
   nombre: string;
   rol: "ADMIN" | "PROVEEDOR";
   proveedor: string | null;
@@ -14,6 +20,7 @@ type Me = {
 type UsuarioRow = {
   id: string;
   email: string;
+  usuario: string | null;
   nombre: string;
   rol: "ADMIN" | "PROVEEDOR";
   proveedor: string | null;
@@ -30,6 +37,7 @@ export default function AdminUsuariosPage() {
   const [listErr, setListErr] = useState<string | null>(null);
 
   const [nombre, setNombre] = useState("");
+  const [usuarioAcceso, setUsuarioAcceso] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [rol, setRol] = useState<"ADMIN" | "PROVEEDOR">("PROVEEDOR");
@@ -43,6 +51,7 @@ export default function AdminUsuariosPage() {
   const [editPassword, setEditPassword] = useState("");
   const [editRol, setEditRol] = useState<"ADMIN" | "PROVEEDOR">("PROVEEDOR");
   const [editProveedor, setEditProveedor] = useState("");
+  const [editUsuario, setEditUsuario] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
   const [editErr, setEditErr] = useState<string | null>(null);
 
@@ -94,6 +103,7 @@ export default function AdminUsuariosPage() {
   function openEdit(u: UsuarioRow) {
     setEdit(u);
     setEditNombre(u.nombre);
+    setEditUsuario(u.usuario ?? "");
     setEditPassword("");
     setEditRol(u.rol);
     setEditProveedor(u.proveedor ?? "");
@@ -111,6 +121,7 @@ export default function AdminUsuariosPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           nombre: nombre.trim(),
+          usuario: usuarioAcceso.trim(),
           email: email.trim(),
           password,
           rol,
@@ -119,8 +130,9 @@ export default function AdminUsuariosPage() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Error al crear");
-      setFormOk(`Usuario creado: ${j.usuario?.email ?? email}`);
+      setFormOk(`Usuario creado: ${j.usuario?.usuario ?? usuarioAcceso} (${j.usuario?.email ?? email})`);
       setNombre("");
+      setUsuarioAcceso("");
       setEmail("");
       setPassword("");
       setProveedor("");
@@ -143,6 +155,7 @@ export default function AdminUsuariosPage() {
         rol: editRol,
         proveedor: editRol === "PROVEEDOR" ? editProveedor.trim() : null,
       };
+      if (editUsuario.trim().length > 0) body.usuario = editUsuario.trim();
       if (editPassword.trim().length > 0) body.password = editPassword;
       const r = await fetch(`/api/admin/usuarios/${edit.id}`, {
         method: "PATCH",
@@ -181,7 +194,7 @@ export default function AdminUsuariosPage() {
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Usuarios del portal</h1>
         {me && (
           <p className="mt-2 text-xs text-zinc-500">
-            Sesión: <span className="font-mono text-zinc-700">{me.email}</span>
+            Sesión: <span className="font-mono text-zinc-700">{me.usuario ? `${me.usuario} · ` : ""}{me.email}</span>
           </p>
         )}
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
@@ -198,41 +211,56 @@ export default function AdminUsuariosPage() {
         <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Nuevo usuario</h2>
         <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={(e) => void onCreate(e)}>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-zinc-600">Nombre visible</label>
+            <label className="text-xs font-medium text-zinc-700">Nombre visible</label>
             <input
               required
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-600">Email (inicio de sesión)</label>
+            <label className="text-xs font-medium text-zinc-700">Usuario (para entrar)</label>
+            <input
+              required
+              minLength={3}
+              maxLength={64}
+              pattern="[a-zA-Z0-9][a-zA-Z0-9_-]*"
+              title="Letras y números; puede incluir _ y - tras el primer carácter"
+              value={usuarioAcceso}
+              onChange={(e) => setUsuarioAcceso(e.target.value)}
+              placeholder="ej. proveedor_acme"
+              className={inputClass}
+            />
+            <p className="mt-1 text-xs text-zinc-500">Se guarda en minúsculas. También se puede entrar con el email.</p>
+          </div>
+          <div>
+            <label className="text-xs font-medium text-zinc-700">Email</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
-          <div>
-            <label className="text-xs font-medium text-zinc-600">Contraseña (mín. 8 caracteres)</label>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-zinc-700">Contraseña (mín. 8 caracteres)</label>
             <input
               type="password"
               required
               minLength={8}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className={inputClass}
             />
           </div>
           <div>
-            <label className="text-xs font-medium text-zinc-600">Rol</label>
+            <label className="text-xs font-medium text-zinc-700">Rol</label>
             <select
               value={rol}
               onChange={(e) => setRol(e.target.value as "ADMIN" | "PROVEEDOR")}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+              className={selectClass}
             >
               <option value="PROVEEDOR">Proveedor</option>
               <option value="ADMIN">Administrador</option>
@@ -240,13 +268,13 @@ export default function AdminUsuariosPage() {
           </div>
           {rol === "PROVEEDOR" && (
             <div>
-              <label className="text-xs font-medium text-zinc-600">Nombre proveedor (como en BD comandes)</label>
+              <label className="text-xs font-medium text-zinc-700">Nombre proveedor (como en BD comandes)</label>
               <input
                 required
                 value={proveedor}
                 onChange={(e) => setProveedor(e.target.value)}
                 placeholder="Ej. Proveedor ACME"
-                className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                className={inputClass}
               />
             </div>
           )}
@@ -275,6 +303,7 @@ export default function AdminUsuariosPage() {
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-zinc-200 text-xs font-semibold uppercase text-zinc-500">
                 <tr>
+                  <th className="py-2 pr-4">Usuario</th>
                   <th className="py-2 pr-4">Email</th>
                   <th className="py-2 pr-4">Nombre</th>
                   <th className="py-2 pr-4">Rol</th>
@@ -286,6 +315,7 @@ export default function AdminUsuariosPage() {
               <tbody>
                 {usuarios.map((u) => (
                   <tr key={u.id} className="border-b border-zinc-100">
+                    <td className="py-2 pr-4 font-mono text-xs text-zinc-800">{u.usuario ?? "—"}</td>
                     <td className="py-2 pr-4 font-mono text-xs text-zinc-800">{u.email}</td>
                     <td className="py-2 pr-4 text-zinc-800">{u.nombre}</td>
                     <td className="py-2 pr-4">
@@ -327,31 +357,45 @@ export default function AdminUsuariosPage() {
             <p className="mt-1 text-xs text-zinc-500">{edit.email}</p>
             <form className="mt-4 space-y-4" onSubmit={(e) => void onSaveEdit(e)}>
               <div>
-                <label className="text-xs font-medium text-zinc-600">Nombre</label>
+                <label className="text-xs font-medium text-zinc-700">Usuario (para entrar)</label>
+                <input
+                  minLength={3}
+                  maxLength={64}
+                  pattern="[a-zA-Z0-9][a-zA-Z0-9_-]*"
+                  title="Letras y números; puede incluir _ y - tras el primer carácter"
+                  value={editUsuario}
+                  onChange={(e) => setEditUsuario(e.target.value)}
+                  placeholder="Opcional si aún no tiene"
+                  className={inputClass}
+                />
+                <p className="mt-1 text-xs text-zinc-500">Déjalo vacío para no cambiar. Mínimo 3 caracteres si lo rellenas.</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-zinc-700">Nombre</label>
                 <input
                   required
                   value={editNombre}
                   onChange={(e) => setEditNombre(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  className={inputClass}
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-zinc-600">Nueva contraseña (opcional)</label>
+                <label className="text-xs font-medium text-zinc-700">Nueva contraseña (opcional)</label>
                 <input
                   type="password"
                   minLength={8}
                   value={editPassword}
                   onChange={(e) => setEditPassword(e.target.value)}
                   placeholder="Dejar vacío para no cambiar"
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  className={inputClass}
                 />
               </div>
               <div>
-                <label className="text-xs font-medium text-zinc-600">Rol</label>
+                <label className="text-xs font-medium text-zinc-700">Rol</label>
                 <select
                   value={editRol}
                   onChange={(e) => setEditRol(e.target.value as "ADMIN" | "PROVEEDOR")}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                  className={selectClass}
                 >
                   <option value="PROVEEDOR">Proveedor</option>
                   <option value="ADMIN">Administrador</option>
@@ -359,12 +403,12 @@ export default function AdminUsuariosPage() {
               </div>
               {editRol === "PROVEEDOR" && (
                 <div>
-                  <label className="text-xs font-medium text-zinc-600">Proveedor</label>
+                  <label className="text-xs font-medium text-zinc-700">Proveedor</label>
                   <input
                     required
                     value={editProveedor}
                     onChange={(e) => setEditProveedor(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                    className={inputClass}
                   />
                 </div>
               )}

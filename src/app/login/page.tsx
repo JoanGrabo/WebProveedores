@@ -8,7 +8,7 @@ function LoginForm() {
   const sp = useSearchParams();
   const from = sp.get("from") || "/dashboard";
 
-  const [email, setEmail] = useState("");
+  const [login, setLogin] = useState("");
   const [password, setPassword] = useState("");
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,7 +21,7 @@ function LoginForm() {
       const r = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: email.trim(), password }),
+        body: JSON.stringify({ login: login.trim(), password }),
       });
       const j = await r.json();
       if (!r.ok) {
@@ -53,18 +53,18 @@ function LoginForm() {
         <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
           <form className="space-y-5" onSubmit={onSubmit}>
             <div>
-              <label htmlFor="email" className="text-xs font-medium text-zinc-400">
-                Email
+              <label htmlFor="login" className="text-xs font-medium text-zinc-400">
+                Usuario o email
               </label>
               <input
-                id="email"
-                type="email"
-                autoComplete="email"
+                id="login"
+                type="text"
+                autoComplete="username"
                 required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={login}
+                onChange={(e) => setLogin(e.target.value)}
                 className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950/50 px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-sky-500/50 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                placeholder="tu@empresa.com"
+                placeholder="admin o tu@empresa.com"
               />
             </div>
             <div>

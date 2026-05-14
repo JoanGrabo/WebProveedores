@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 type Me = {
   id: string;
   email: string;
+  usuario: string | null;
   nombre: string;
   rol: "ADMIN" | "PROVEEDOR";
   proveedor: string | null;

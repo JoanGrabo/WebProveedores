@@ -9,10 +9,11 @@ async function main() {
 
   await prisma.usuario.upsert({
     where: { email: "admin@empresa.local" },
-    update: {},
+    update: { usuario: "admin" },
     create: {
       nombre: "Administrador",
       email: "admin@empresa.local",
+      usuario: "admin",
       password: passwordAdmin,
       rol: Rol.ADMIN,
       proveedor: null,
@@ -21,10 +22,11 @@ async function main() {
 
   const proveedor = await prisma.usuario.upsert({
     where: { email: "proveedor@ejemplo.local" },
-    update: {},
+    update: { usuario: "proveedor" },
     create: {
       nombre: "Proveedor demo",
       email: "proveedor@ejemplo.local",
+      usuario: "proveedor",
       password: passwordProv,
       rol: Rol.PROVEEDOR,
       proveedor: "Proveedor ACME",
@@ -101,8 +103,8 @@ async function main() {
   });
 
   console.log("Seed OK.");
-  console.log("  Admin:     admin@empresa.local / Admin123!");
-  console.log("  Proveedor: proveedor@ejemplo.local / Proveedor123!");
+  console.log("  Admin:     admin@empresa.local o usuario «admin» / Admin123!");
+  console.log("  Proveedor: proveedor@ejemplo.local o usuario «proveedor» / Proveedor123!");
   console.log("  Comandas:  CMD-2026-001, CMD-2026-002 (proveedor: Proveedor ACME)");
 }
 

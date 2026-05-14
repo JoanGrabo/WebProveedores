@@ -7,6 +7,7 @@ import { verifySessionToken } from "@/lib/session-jwt";
 export type SessionUser = {
   id: string;
   email: string;
+  usuario: string | null;
   nombre: string;
   rol: Rol;
   proveedor: string | null;
@@ -21,7 +22,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
     if (!claims) return null;
     const user = await prisma.usuario.findUnique({
       where: { id: claims.sub },
-      select: { id: true, email: true, nombre: true, rol: true, proveedor: true },
+      select: { id: true, email: true, usuario: true, nombre: true, rol: true, proveedor: true },
     });
     return user;
   } catch {

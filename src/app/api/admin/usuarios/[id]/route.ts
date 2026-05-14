@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { Rol } from "@prisma/client";
+import { Prisma, Rol } from "@prisma/client";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
+const usuarioAccesoPatch = z
+  .string()
+  .min(3)
+  .max(64)
+  .regex(/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/, "Solo letras, números, _ y - (no empezar por esos)")
+  .transform((s) => s.toLowerCase());
+
 const patchSchema = z.object({
   nombre: z.string().min(1).max(200).optional(),
+  usuario: usuarioAccesoPatch.optional(),
   password: z.string().min(8).max(200).optional(),
   rol: z.nativeEnum(Rol).optional(),
   proveedor: z.string().max(255).nullable().optional(),
@@ -62,12 +70,14 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
 
   const data: {
     nombre?: string;
+    usuario?: string;
     password?: string;
     rol?: Rol;
     proveedor?: string | null;
   } = {};
 
   if (parsed.data.nombre !== undefined) data.nombre = parsed.data.nombre;
+  if (parsed.data.usuario !== undefined) data.usuario = parsed.data.usuario;
   if (parsed.data.rol !== undefined) data.rol = parsed.data.rol;
   if (parsed.data.password !== undefined && parsed.data.password.length > 0) {
     data.password = await bcrypt.hash(parsed.data.password, 10);
@@ -80,11 +90,18 @@ export async function PATCH(req: NextRequest, ctx: RouteCtx) {
     return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
   }
 
-  const updated = await prisma.usuario.update({
-    where: { id },
-    data,
-    select: { id: true, email: true, nombre: true, rol: true, proveedor: true, createdAt: true },
-  });
+  try {
+    const updated = await prisma.usuario.update({
+      where: { id },
+      data,
+      select: { id: true, email: true, usuario: true, nombre: true, rol: true, proveedor: true, createdAt: true },
+    });
 
-  return NextResponse.json({ usuario: updated });
+    return NextResponse.json({ usuario: updated });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return NextResponse.json({ error: "Ese nombre de usuario ya está en uso" }, { status: 409 });
+    }
+    throw e;
+  }
 }
