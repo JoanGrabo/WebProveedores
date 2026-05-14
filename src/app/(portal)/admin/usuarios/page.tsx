@@ -69,14 +69,14 @@ export default function AdminUsuariosPage() {
       try {
         const r = await fetch("/api/auth/me");
         if (r.status === 401) {
-          window.location.href = "/login?from=" + encodeURIComponent("/admin/usuarios");
+          window.location.href = "/login?from=" + encodeURIComponent("/dashboard");
           return;
         }
         const u = (await r.json()) as Me;
         if (cancel) return;
         setMe(u);
         if (u.rol !== "ADMIN") {
-          window.location.href = "/comandas";
+          window.location.href = "/dashboard";
           return;
         }
         await loadUsuarios();
@@ -160,50 +160,38 @@ export default function AdminUsuariosPage() {
     }
   }
 
-  async function logout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/login";
-  }
-
   if (!ready) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-16 text-center text-sm text-zinc-500">
+      <div className="flex justify-center py-24 text-sm text-zinc-500">
         Cargando…
-      </main>
+      </div>
     );
   }
 
   if (bootErr) {
     return (
-      <main className="mx-auto max-w-4xl px-4 py-16">
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{bootErr}</p>
-      </main>
+      <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{bootErr}</div>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-violet-600">Administración</p>
-          <h1 className="mt-1 text-2xl font-bold text-zinc-900">Usuarios del portal</h1>
-          {me && (
-            <p className="mt-1 text-xs text-zinc-500">
-              Sesión: <span className="font-mono text-zinc-700">{me.email}</span>
-            </p>
-          )}
-          <p className="mt-2 max-w-xl text-sm text-zinc-600">
-            Crea cuentas para cada proveedor (rol proveedor + nombre de proveedor igual que en comandas). Los administradores ven todas las comandas.
+    <div className="mx-auto max-w-4xl">
+      <header className="mb-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Administración</p>
+        <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Usuarios del portal</h1>
+        {me && (
+          <p className="mt-2 text-xs text-zinc-500">
+            Sesión: <span className="font-mono text-zinc-700">{me.email}</span>
           </p>
-        </div>
-        <div className="flex flex-wrap gap-3 text-sm">
-          <Link href="/comandas" className="font-medium text-sky-700 hover:underline">
-            Comandas
+        )}
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-600">
+          Crea cuentas para cada proveedor (rol proveedor + nombre de proveedor igual que en comandes). Los administradores ven todas las comandas.
+        </p>
+        <p className="mt-4 text-sm">
+          <Link href="/dashboard" className="font-medium text-sky-600 hover:text-sky-800">
+            ← Volver al panel
           </Link>
-          <button type="button" onClick={() => void logout()} className="font-medium text-zinc-600 hover:underline">
-            Salir
-          </button>
-        </div>
+        </p>
       </header>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -401,6 +389,6 @@ export default function AdminUsuariosPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

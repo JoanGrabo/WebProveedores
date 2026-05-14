@@ -2,45 +2,58 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="mx-auto flex min-h-screen max-w-2xl flex-col justify-center gap-8 px-6 py-16">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Web proveedores</p>
-        <h1 className="mt-2 font-sans text-3xl font-semibold text-white">Portal de comandas</h1>
-        <p className="mt-3 text-slate-400">
-          Base de datos lista si ejecutaste <code className="rounded bg-slate-800 px-1.5 py-0.5 text-sm">./setup.sh</code> o{" "}
-          <code className="rounded bg-slate-800 px-1.5 py-0.5 text-sm">npm run instalar</code>.
+    <div className="relative min-h-screen overflow-hidden bg-zinc-950">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(56,189,248,0.22),transparent)]" />
+      <div className="pointer-events-none absolute bottom-0 left-1/2 h-96 w-[120%] -translate-x-1/2 bg-[radial-gradient(circle,rgba(99,102,241,0.12),transparent_55%)]" />
+
+      <main className="relative mx-auto flex min-h-screen max-w-5xl flex-col px-6 pb-20 pt-16 sm:px-10 lg:pt-24">
+        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-1.5 text-xs font-medium text-zinc-300 backdrop-blur">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+          Portal empresa — proveedores
+        </div>
+
+        <h1 className="mt-8 max-w-3xl text-4xl font-bold tracking-tight text-white sm:text-5xl lg:text-6xl">
+          Comandas claras, <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">sin fricción</span>
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-relaxed text-zinc-400">
+          Accede al panel para revisar líneas, enviar selección y coordinar con la base <code className="rounded bg-white/10 px-1.5 py-0.5 text-sm text-zinc-200">comandes</code>.
         </p>
-      </div>
-      <ul className="space-y-3 text-slate-300">
-        <li>
-          <Link href="/login" className="text-amber-400 underline-offset-4 hover:underline">
-            Iniciar sesión (proveedores / admin)
+
+        <div className="mt-10 flex flex-wrap gap-4">
+          <Link
+            href="/login"
+            className="inline-flex items-center justify-center rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 px-8 py-3.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/25 transition hover:brightness-110"
+          >
+            Entrar al portal
           </Link>
-        </li>
-        <li>
-          Ver comandas (requiere login):{" "}
-          <Link href="/comandas" className="text-amber-400 underline-offset-4 hover:underline">
-            /comandas
+          <Link
+            href="/api/health"
+            className="inline-flex items-center justify-center rounded-2xl border border-white/15 bg-white/5 px-6 py-3.5 text-sm font-medium text-zinc-200 backdrop-blur transition hover:bg-white/10"
+          >
+            Estado API
           </Link>
-        </li>
-        <li>
-          Ver filas de la tabla original <code className="text-slate-500">comandes</code> (solo lectura):{" "}
-          <Link href="/comandes-origen" className="text-amber-400 underline-offset-4 hover:underline">
-            /comandes-origen
-          </Link>
-        </li>
-        <li>
-          Comprueba la API:{" "}
-          <Link href="/api/health" className="text-amber-400 underline-offset-4 hover:underline">
-            /api/health
-          </Link>{" "}
-          (debe devolver <code className="text-slate-500">ok: true</code>)
-        </li>
-        <li>
-          Usuarios de prueba tras el seed: <span className="text-slate-500">admin@empresa.local</span> /{" "}
-          <span className="text-slate-500">proveedor@ejemplo.local</span> (contraseñas en consola del seed)
-        </li>
-      </ul>
-    </main>
+        </div>
+
+        <ul className="mt-16 grid gap-4 sm:grid-cols-3">
+          {[
+            { t: "Roles", d: "Admin ve todo; cada proveedor solo sus comandas." },
+            { t: "Seguro", d: "Sesión con cookie httpOnly y contraseñas con hash." },
+            { t: "Rápido", d: "Explorador compacto y listado global para administración." },
+          ].map((x) => (
+            <li
+              key={x.t}
+              className="rounded-2xl border border-white/10 bg-white/[0.03] p-5 text-sm text-zinc-400 backdrop-blur transition hover:border-white/15 hover:bg-white/[0.05]"
+            >
+              <p className="font-semibold text-white">{x.t}</p>
+              <p className="mt-2 leading-relaxed">{x.d}</p>
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-auto pt-16 text-center text-xs text-zinc-600">
+          ¿Primera vez? Ejecuta <code className="text-zinc-400">./setup.sh</code> o <code className="text-zinc-400">npm run instalar</code> y revisa <code className="text-zinc-400">PASOS.txt</code>.
+        </p>
+      </main>
+    </div>
   );
 }

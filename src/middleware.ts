@@ -36,7 +36,7 @@ export async function middleware(request: NextRequest) {
         if (pathname.startsWith("/api/")) {
           return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
         }
-        return NextResponse.redirect(new URL("/comandas", request.url));
+        return NextResponse.redirect(new URL("/dashboard", request.url));
       }
     }
 
@@ -51,6 +51,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
+    "/dashboard",
+    "/dashboard/:path*",
     "/comandas",
     "/comandas/:path*",
     "/comandes-origen",
