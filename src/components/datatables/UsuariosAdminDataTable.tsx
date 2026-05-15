@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Config } from "datatables.net";
-import { attachPortalColumnFilters } from "./attach-column-filters";
+import { makeInitCompleteWithColumnFilters } from "./attach-column-filters";
 import { dtLanguageEs } from "./dt-language-es";
 
 export type UsuarioRow = {
@@ -71,6 +71,11 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
       table.className = "display stripe hover nowrap w-full text-left text-sm text-zinc-800";
       h.appendChild(table);
 
+      const onTableReady = makeInitCompleteWithColumnFilters(
+        h,
+        DataTable as unknown as { Api: new (context: unknown) => import("./attach-column-filters").ColumnFilterApi },
+      );
+
       const opts: Config = {
         data: rows,
         columns: [
@@ -117,6 +122,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
         lengthMenu: [10, 25, 50, 100],
         language: dtLanguageEs,
         autoWidth: false,
+        initComplete: onTableReady,
       };
 
       const api = new DataTable(table, opts) as unknown as { destroy: () => void };
@@ -124,7 +130,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
         api.destroy();
         return;
       }
-      attachPortalColumnFilters(api as unknown as Parameters<typeof attachPortalColumnFilters>[0]);
+      onTableReady(api);
       apiRef.current = api;
       listenerHost = h;
       listenerHost.addEventListener("click", onClick);
