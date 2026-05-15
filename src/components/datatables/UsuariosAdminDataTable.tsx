@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Config } from "datatables.net";
+import { attachPortalColumnFilters } from "./attach-column-filters";
 import { dtLanguageEs } from "./dt-language-es";
 
 export type UsuarioRow = {
@@ -103,7 +104,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
           },
           {
             data: null,
-            title: "",
+            title: "Acciones",
             orderable: false,
             searchable: false,
             className: "w-20",
@@ -123,6 +124,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
         api.destroy();
         return;
       }
+      attachPortalColumnFilters(api as unknown as Parameters<typeof attachPortalColumnFilters>[0]);
       apiRef.current = api;
       listenerHost = h;
       listenerHost.addEventListener("click", onClick);

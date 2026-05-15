@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { Config } from "datatables.net";
+import { attachPortalColumnFilters } from "./attach-column-filters";
 import { dtLanguageEs } from "./dt-language-es";
 
 export type EntradaRow = {
@@ -84,24 +85,24 @@ export function EntradasAdminDataTable({ rows, loading, error, onDelete }: Props
         data: rows,
         columns: [
           {
+            data: "idEntrada",
+            title: "ID",
+            className: "tabular-nums text-zinc-700",
+            render: (id: number) => String(id),
+          },
+          { data: "codigoPieza", title: "Código pieza", className: "font-mono text-xs" },
+          { data: "unidadesPieza", title: "Unidades", className: "tabular-nums" },
+          { data: "proveedor", title: "Proveedor" },
+          {
             data: "fechaEntrada",
             title: "Fecha entrada",
             render: (d: string) => (d ? new Date(d).toLocaleString("es-ES") : "—"),
           },
-          { data: "proveedor", title: "Proveedor" },
-          { data: "codigoPieza", title: "Código pieza", className: "font-mono text-xs" },
-          { data: "unidadesPieza", title: "Unidades", className: "tabular-nums" },
-          { data: "numeroAlbaran", title: "Nº albarán", className: "font-mono text-xs" },
-          { data: "numeroComanda", title: "Nº comanda", className: "font-mono text-xs" },
-          {
-            data: "idEntrada",
-            title: "Id",
-            className: "text-zinc-500",
-            render: (id: number) => String(id),
-          },
+          { data: "numeroAlbaran", title: "Albarán", className: "font-mono text-xs" },
+          { data: "numeroComanda", title: "Comanda", className: "font-mono text-xs" },
           {
             data: null,
-            title: "",
+            title: "Eliminar",
             orderable: false,
             searchable: false,
             className: "w-24",
@@ -109,7 +110,7 @@ export function EntradasAdminDataTable({ rows, loading, error, onDelete }: Props
               `<button type="button" class="inline-flex items-center justify-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-semibold text-red-800 shadow-sm transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500/30 dt-entrada-del" data-id="${escAttr(String(row.idEntrada))}">Eliminar</button>`,
           },
         ],
-        order: [[0, "desc"]],
+        order: [[4, "desc"]],
         pageLength: 25,
         lengthMenu: [10, 25, 50, 100, 250],
         language: dtLanguageEs,
@@ -121,6 +122,7 @@ export function EntradasAdminDataTable({ rows, loading, error, onDelete }: Props
         api.destroy();
         return;
       }
+      attachPortalColumnFilters(api as unknown as Parameters<typeof attachPortalColumnFilters>[0]);
       apiRef.current = api;
       listenerHost = h;
       listenerHost.addEventListener("click", onClick);
