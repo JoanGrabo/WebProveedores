@@ -2,18 +2,8 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-const DATA_COLUMNS = [
-  "numComanda",
-  "reparacion",
-  "nomProveedor",
-  "codiPieza",
-  "CodigoFab",
-  "cantidad",
-  "codigoConjunto",
-  "OP",
-  "tipus",
-  "cerrada",
-] as const;
+/** Incrementa al cambiar la lógica de sync (comprueba despliegue con GET /api/mobile/comandas/sync). */
+export const COMANDA_SYNC_VERSION = 4;
 
 export const comandaLineaSchema = z.object({
   numComanda: z.string().min(1).max(255),
@@ -44,69 +34,37 @@ function lineKey(r: Pick<ComandaLineaInput, "OP" | "codigoConjunto" | "codiPieza
   return `${normKey(r.OP)}|${normKey(r.codigoConjunto)}|${`${r.codiPieza}`.trim()}|${Number(r.CodigoFab) || 0}`;
 }
 
-function rowToValues(r: ComandaLineaInput): (string | number | null)[] {
-  return [
-    r.numComanda.trim(),
-    r.reparacion ?? null,
-    r.nomProveedor,
-    `${r.codiPieza}`.trim(),
-    Number(r.CodigoFab) || 0,
-    r.cantidad ?? null,
-    normKey(r.codigoConjunto),
-    normKey(r.OP),
-    r.tipus ?? null,
-    r.cerrada ?? 0,
-  ];
-}
+type ExistingLine = {
+  idComanda: bigint;
+  OP: string | null;
+  codigoConjunto: string | null;
+  codiPieza: string | null;
+  CodigoFab: number | null;
+};
 
+/** Borra líneas de la comanda que ya no están en el Excel (sin tabla temporal; menos permisos MySQL). */
 async function deleteMissingLines(
   tx: Prisma.TransactionClient,
   numComanda: string,
   rows: ComandaLineaInput[],
-  keyBatchSize = 500,
 ) {
-  const keys = rows.map((r) => [
-    normKey(r.OP),
-    normKey(r.codigoConjunto),
-    `${r.codiPieza}`.trim(),
-    Number(r.CodigoFab) || 0,
-  ]);
-
-  await tx.$executeRawUnsafe(`
-    CREATE TEMPORARY TABLE IF NOT EXISTS tmp_excel_keys (
-      OP VARCHAR(255) NOT NULL,
-      codigoConjunto VARCHAR(255) NOT NULL,
-      codiPieza VARCHAR(255) NOT NULL,
-      CodigoFab INT NOT NULL,
-      PRIMARY KEY (OP, codigoConjunto, codiPieza, CodigoFab)
-    ) ENGINE=MEMORY
-  `);
-  await tx.$executeRawUnsafe(`TRUNCATE TABLE tmp_excel_keys`);
-
-  for (let i = 0; i < keys.length; i += keyBatchSize) {
-    const chunk = keys.slice(i, i + keyBatchSize);
-    const placeholders = chunk.map(() => "(?,?,?,?)").join(",");
-    const flat = chunk.flat();
-    await tx.$executeRawUnsafe(
-      `INSERT IGNORE INTO tmp_excel_keys (OP, codigoConjunto, codiPieza, CodigoFab) VALUES ${placeholders}`,
-      ...flat,
-    );
+  if (rows.length === 0) {
+    await tx.$executeRaw`DELETE FROM comandes WHERE numComanda = ${numComanda}`;
+    return;
   }
 
-  await tx.$executeRawUnsafe(
-    `
-    DELETE c
-    FROM comandes c
-    LEFT JOIN tmp_excel_keys t
-      ON t.OP = c.OP
-     AND t.codigoConjunto = c.codigoConjunto
-     AND t.codiPieza = c.codiPieza
-     AND t.CodigoFab = c.CodigoFab
-    WHERE c.numComanda = ?
-      AND t.codiPieza IS NULL
-    `,
-    numComanda,
+  const inList = Prisma.join(
+    rows.map(
+      (r) =>
+        Prisma.sql`(${normKey(r.OP)}, ${normKey(r.codigoConjunto)}, ${`${r.codiPieza}`.trim()}, ${Number(r.CodigoFab) || 0})`,
+    ),
   );
+
+  await tx.$executeRaw`
+    DELETE FROM comandes
+    WHERE numComanda = ${numComanda}
+      AND (OP, codigoConjunto, codiPieza, CodigoFab) NOT IN (${inList})
+  `;
 }
 
 async function upsertLinesWithExplicitId(
@@ -114,9 +72,7 @@ async function upsertLinesWithExplicitId(
   num: string,
   normalized: ComandaLineaInput[],
 ) {
-  const existing = await tx.$queryRaw<
-    { idComanda: bigint; OP: string | null; codigoConjunto: string | null; codiPieza: string | null; CodigoFab: number | null }[]
-  >`
+  const existing = await tx.$queryRaw<ExistingLine[]>`
     SELECT idComanda, OP, codigoConjunto, codiPieza, CodigoFab
     FROM comandes
     WHERE numComanda = ${num}
@@ -138,34 +94,75 @@ async function upsertLinesWithExplicitId(
   const maxRow = await tx.$queryRaw<{ m: bigint | null }[]>`SELECT MAX(idComanda) AS m FROM comandes`;
   let nextId = Number(maxRow[0]?.m ?? 0) + 1;
 
-  const dataCols = DATA_COLUMNS.map((c) => `\`${c}\``).join(",");
+  let inserted = 0;
+  let updated = 0;
 
   for (const r of normalized) {
-    const values = rowToValues(r);
     const k = lineKey(r);
     const existingId = idByKey.get(k);
+    const codiPieza = `${r.codiPieza}`.trim();
+    const codigoFab = Number(r.CodigoFab) || 0;
+    const op = normKey(r.OP);
+    const codigoConjunto = normKey(r.codigoConjunto);
+    const cantidad = r.cantidad ?? null;
+    const cerrada = r.cerrada ?? 0;
 
     if (existingId != null) {
-      await tx.$executeRawUnsafe(
-        `UPDATE comandes SET ${DATA_COLUMNS.map((c) => `\`${c}\` = ?`).join(", ")} WHERE idComanda = ?`,
-        ...values,
-        existingId,
-      );
+      await tx.$executeRaw`
+        UPDATE comandes SET
+          numComanda = ${num},
+          reparacion = ${r.reparacion ?? null},
+          nomProveedor = ${r.nomProveedor},
+          codiPieza = ${codiPieza},
+          CodigoFab = ${codigoFab},
+          cantidad = ${cantidad},
+          codigoConjunto = ${codigoConjunto},
+          OP = ${op},
+          tipus = ${r.tipus ?? null},
+          cerrada = ${cerrada}
+        WHERE idComanda = ${existingId}
+      `;
+      updated++;
     } else {
       const id = nextId++;
-      await tx.$executeRawUnsafe(
-        `INSERT INTO comandes (idComanda, ${dataCols}) VALUES (?, ${DATA_COLUMNS.map(() => "?").join(",")})`,
-        id,
-        ...values,
-      );
+      await tx.$executeRaw`
+        INSERT INTO comandes (
+          idComanda,
+          numComanda,
+          reparacion,
+          nomProveedor,
+          codiPieza,
+          CodigoFab,
+          cantidad,
+          codigoConjunto,
+          OP,
+          tipus,
+          cerrada
+        ) VALUES (
+          ${id},
+          ${num},
+          ${r.reparacion ?? null},
+          ${r.nomProveedor},
+          ${codiPieza},
+          ${codigoFab},
+          ${cantidad},
+          ${codigoConjunto},
+          ${op},
+          ${r.tipus ?? null},
+          ${cerrada}
+        )
+      `;
       idByKey.set(k, id);
+      inserted++;
     }
   }
+
+  return { inserted, updated, nextIdStart: nextId };
 }
 
 /**
  * Sincroniza una comanda (líneas desde Excel).
- * Asigna idComanda manualmente si la tabla no tiene AUTO_INCREMENT (común en VPS).
+ * Siempre asigna idComanda en INSERT (tablas sin AUTO_INCREMENT en VPS).
  */
 export async function syncComandaFromExcel(
   numComanda: string,
@@ -189,12 +186,20 @@ export async function syncComandaFromExcel(
     }
   }
 
-  await prisma.$transaction(async (tx) => {
-    await upsertLinesWithExplicitId(tx, num, normalized);
+  const stats = await prisma.$transaction(async (tx) => {
+    const upsertStats = await upsertLinesWithExplicitId(tx, num, normalized);
     if (syncDelete) {
       await deleteMissingLines(tx, num, normalized);
     }
+    return upsertStats;
   });
 
-  return { numComanda: num, lineas: normalized.length, syncDelete };
+  return {
+    syncVersion: COMANDA_SYNC_VERSION,
+    numComanda: num,
+    lineas: normalized.length,
+    syncDelete,
+    inserted: stats.inserted,
+    updated: stats.updated,
+  };
 }

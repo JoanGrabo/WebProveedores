@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { comandaSyncBodySchema, syncComandaFromExcel } from "@/lib/comandes-sync";
+import { COMANDA_SYNC_VERSION, comandaSyncBodySchema, syncComandaFromExcel } from "@/lib/comandes-sync";
 import { isMobileApiAuthorized } from "@/lib/mobile-api";
 
 export const dynamic = "force-dynamic";
+
+/** Comprueba que el servidor tiene el código nuevo (debe devolver syncVersion: 3). */
+export async function GET() {
+  return NextResponse.json({
+    ok: true,
+    syncVersion: COMANDA_SYNC_VERSION,
+    method: "POST con Authorization: Bearer <MOBILE_API_KEY>",
+  });
+}
 
 /**
  * Sincroniza una comanda (líneas desde Excel) en la BD del portal.
@@ -37,6 +46,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, ...result });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error al sincronizar comanda";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[comandas/sync]", msg, e);
+    return NextResponse.json(
+      { error: msg, syncVersion: COMANDA_SYNC_VERSION, hint: "Si syncVersion no es 4, redeploy del portal" },
+      { status: 500 },
+    );
   }
 }
