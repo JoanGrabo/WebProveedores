@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
-const TABLE_COLUMNS = [
+const DATA_COLUMNS = [
   "numComanda",
   "reparacion",
   "nomProveedor",
@@ -38,6 +38,10 @@ export type ComandaLineaInput = z.infer<typeof comandaLineaSchema>;
 
 function normKey(v: string | null | undefined): string {
   return v == null ? "" : `${v}`.trim();
+}
+
+function lineKey(r: Pick<ComandaLineaInput, "OP" | "codigoConjunto" | "codiPieza" | "CodigoFab">): string {
+  return `${normKey(r.OP)}|${normKey(r.codigoConjunto)}|${`${r.codiPieza}`.trim()}|${Number(r.CodigoFab) || 0}`;
 }
 
 function rowToValues(r: ComandaLineaInput): (string | number | null)[] {
@@ -105,12 +109,68 @@ async function deleteMissingLines(
   );
 }
 
-/** Misma lógica que el importador Excel: UPSERT por lote + borrar líneas que ya no están en el Excel. */
+async function upsertLinesWithExplicitId(
+  tx: Prisma.TransactionClient,
+  num: string,
+  normalized: ComandaLineaInput[],
+) {
+  const existing = await tx.$queryRaw<
+    { idComanda: bigint; OP: string | null; codigoConjunto: string | null; codiPieza: string | null; CodigoFab: number | null }[]
+  >`
+    SELECT idComanda, OP, codigoConjunto, codiPieza, CodigoFab
+    FROM comandes
+    WHERE numComanda = ${num}
+  `;
+
+  const idByKey = new Map<string, number>();
+  for (const e of existing) {
+    idByKey.set(
+      lineKey({
+        OP: e.OP ?? "",
+        codigoConjunto: e.codigoConjunto ?? "",
+        codiPieza: e.codiPieza ?? "",
+        CodigoFab: Number(e.CodigoFab) || 0,
+      }),
+      Number(e.idComanda),
+    );
+  }
+
+  const maxRow = await tx.$queryRaw<{ m: bigint | null }[]>`SELECT MAX(idComanda) AS m FROM comandes`;
+  let nextId = Number(maxRow[0]?.m ?? 0) + 1;
+
+  const dataCols = DATA_COLUMNS.map((c) => `\`${c}\``).join(",");
+
+  for (const r of normalized) {
+    const values = rowToValues(r);
+    const k = lineKey(r);
+    const existingId = idByKey.get(k);
+
+    if (existingId != null) {
+      await tx.$executeRawUnsafe(
+        `UPDATE comandes SET ${DATA_COLUMNS.map((c) => `\`${c}\` = ?`).join(", ")} WHERE idComanda = ?`,
+        ...values,
+        existingId,
+      );
+    } else {
+      const id = nextId++;
+      await tx.$executeRawUnsafe(
+        `INSERT INTO comandes (idComanda, ${dataCols}) VALUES (?, ${DATA_COLUMNS.map(() => "?").join(",")})`,
+        id,
+        ...values,
+      );
+      idByKey.set(k, id);
+    }
+  }
+}
+
+/**
+ * Sincroniza una comanda (líneas desde Excel).
+ * Asigna idComanda manualmente si la tabla no tiene AUTO_INCREMENT (común en VPS).
+ */
 export async function syncComandaFromExcel(
   numComanda: string,
   rows: ComandaLineaInput[],
   syncDelete = true,
-  batchSize = 500,
 ) {
   const num = numComanda.trim();
   const normalized = rows.map((r) => ({
@@ -129,26 +189,8 @@ export async function syncComandaFromExcel(
     }
   }
 
-  const cols = TABLE_COLUMNS.map((c) => `\`${c}\``).join(",");
-  const ph = `(${TABLE_COLUMNS.map(() => "?").join(",")})`;
-  const sqlTail = `
-    ON DUPLICATE KEY UPDATE
-      cantidad = VALUES(cantidad),
-      nomProveedor = VALUES(nomProveedor),
-      tipus = VALUES(tipus),
-      reparacion = VALUES(reparacion),
-      CodigoFab = VALUES(CodigoFab),
-      cerrada = VALUES(cerrada)
-  `;
-
   await prisma.$transaction(async (tx) => {
-    for (let i = 0; i < normalized.length; i += batchSize) {
-      const chunk = normalized.slice(i, i + batchSize);
-      const values = chunk.flatMap((r) => rowToValues(r));
-      const sql = `INSERT INTO comandes (${cols}) VALUES ${chunk.map(() => ph).join(",")} ${sqlTail}`;
-      await tx.$executeRawUnsafe(sql, ...values);
-    }
-
+    await upsertLinesWithExplicitId(tx, num, normalized);
     if (syncDelete) {
       await deleteMissingLines(tx, num, normalized);
     }
