@@ -218,9 +218,12 @@ export default function AdminUsuariosPage() {
             Sesión: <span className="font-mono text-zinc-700">{me.usuario ? `${me.usuario} · ` : ""}{me.email}</span>
           </p>
         )}
-        <p className="mt-4 text-sm">
+        <p className="mt-4 flex flex-wrap gap-4 text-sm">
           <Link href="/dashboard" className="font-medium text-sky-600 hover:text-sky-800">
             ← Volver al panel
+          </Link>
+          <Link href="/admin/entradas" className="font-medium text-emerald-600 hover:text-emerald-800">
+            Entradas →
           </Link>
         </p>
       </header>

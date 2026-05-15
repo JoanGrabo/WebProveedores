@@ -163,3 +163,19 @@ model HistorialEstado {
   @@index([piezaId])
   @@map("historial_estados")
 }
+
+/// Recepción de piezas (albarán, proveedor, comanda). Solo administración en el portal.
+model Entrada {
+  idEntrada      Int      @id @default(autoincrement()) @map("idEntrada")
+  codigoPieza    String   @map("codigoPieza") @db.VarChar(45)
+  unidadesPieza  String   @map("unidadesPieza") @db.VarChar(45)
+  numeroAlbaran  String   @map("numeroAlbaran") @db.VarChar(45)
+  fechaEntrada   DateTime @map("fechaEntrada")
+  proveedor      String   @map("Proveedor") @db.VarChar(45)
+  numeroComanda  String   @map("numeroComanda") @db.VarChar(45)
+
+  @@index([fechaEntrada])
+  @@index([proveedor])
+  @@index([numeroComanda])
+  @@map("entradas")
+}
