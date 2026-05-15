@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 /** Incrementa al cambiar la lógica de sync (comprueba despliegue con GET /api/mobile/comandas/sync). */
-export const COMANDA_SYNC_VERSION = 4;
+export const COMANDA_SYNC_VERSION = 5;
 
 export const comandaLineaSchema = z.object({
   numComanda: z.string().min(1).max(255),
@@ -119,7 +119,8 @@ async function upsertLinesWithExplicitId(
           codigoConjunto = ${codigoConjunto},
           OP = ${op},
           tipus = ${r.tipus ?? null},
-          cerrada = ${cerrada}
+          cerrada = ${cerrada},
+          fechaInsercion = COALESCE(fechaInsercion, CURRENT_TIMESTAMP)
         WHERE idComanda = ${existingId}
       `;
       updated++;
@@ -137,7 +138,8 @@ async function upsertLinesWithExplicitId(
           codigoConjunto,
           OP,
           tipus,
-          cerrada
+          cerrada,
+          fechaInsercion
         ) VALUES (
           ${id},
           ${num},
@@ -149,7 +151,8 @@ async function upsertLinesWithExplicitId(
           ${codigoConjunto},
           ${op},
           ${r.tipus ?? null},
-          ${cerrada}
+          ${cerrada},
+          CURRENT_TIMESTAMP
         )
       `;
       idByKey.set(k, id);

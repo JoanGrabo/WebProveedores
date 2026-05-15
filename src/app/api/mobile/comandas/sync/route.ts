@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     const msg = e instanceof Error ? e.message : "Error al sincronizar comanda";
     console.error("[comandas/sync]", msg, e);
     return NextResponse.json(
-      { error: msg, syncVersion: COMANDA_SYNC_VERSION, hint: "Si syncVersion no es 4, redeploy del portal" },
+      { error: msg, syncVersion: COMANDA_SYNC_VERSION, hint: "Si syncVersion no es 5, redeploy del portal" },
       { status: 500 },
     );
   }
