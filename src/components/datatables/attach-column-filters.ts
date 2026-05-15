@@ -1,7 +1,7 @@
-/** Fila de inputs bajo el thead (filtro por columna, como en jQuery DataTables). */
+/** Fila de inputs bajo el thead para filtrar cada columna (DataTables). */
 type DtApi = {
   table: () => { node: () => HTMLTableElement };
-  columns: () => { count: () => number };
+  columns: () => { count?: () => number; indexes?: () => number[] };
   column: (idx: number) => DtColumn;
 };
 
@@ -13,15 +13,26 @@ type DtColumn = {
   };
 };
 
+function columnCount(api: DtApi, thead: HTMLTableSectionElement): number {
+  const fromApi = api.columns().count?.();
+  if (typeof fromApi === "number" && fromApi > 0) return fromApi;
+  const idx = api.columns().indexes?.();
+  if (idx && idx.length > 0) return idx.length;
+  const headerRow = thead.querySelector("tr");
+  return headerRow ? headerRow.querySelectorAll("th, td").length : 0;
+}
+
 export function attachPortalColumnFilters(api: DtApi) {
   const table = api.table().node();
   const thead = table.querySelector("thead");
   if (!thead || thead.querySelector("tr.dt-column-filters")) return;
 
+  const n = columnCount(api, thead);
+  if (n === 0) return;
+
   const filterRow = document.createElement("tr");
   filterRow.className = "dt-column-filters";
 
-  const n = api.columns().count();
   for (let i = 0; i < n; i++) {
     const column = api.column(i);
     const th = document.createElement("th");
