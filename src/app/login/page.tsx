@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useState } from "react";
 
@@ -42,10 +43,15 @@ function LoginForm() {
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_70%_50%_at_50%_-10%,rgba(56,189,248,0.18),transparent)]" />
       <main className="relative mx-auto w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-sky-500/30">
-            P
-          </div>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
+          <Image
+            src="/logo-astech.png"
+            alt="Astech"
+            width={320}
+            height={120}
+            priority
+            className="mx-auto h-auto w-full max-w-[min(100%,20rem)] object-contain"
+          />
+          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Iniciar sesión</h1>
           <p className="mt-2 text-sm text-zinc-400">Cada proveedor ve solo sus comandas. Tras entrar irás al panel.</p>
         </div>
@@ -105,7 +111,7 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-500">Cargando…</div>
+        <div className="flex min-h-screen items-center justify-center bg-zinc-950 text-zinc-500">Cargando…</motion>
       }
     >
       <LoginForm />
