@@ -142,7 +142,9 @@ function LineasLeyenda({ rol }: { rol: "ADMIN" | "PROVEEDOR" }) {
         </span>
         <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
           <span className="h-2 w-2 rounded-full bg-rose-500" />
-          {prov ? "Declinada: puedes volver a enviar" : "Declinada por empresa (el proveedor puede reenviar)"}
+          {prov
+            ? "Declinada: revisa el aviso bajo la referencia y vuelve a enviar"
+            : "Declinada por empresa (el proveedor puede reenviar)"}
         </span>
         <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1 text-emerald-900">
           <span className="h-2 w-2 rounded-full bg-emerald-600" />
@@ -188,6 +190,9 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   const [msgEnvio, setMsgEnvio] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [revisando, setRevisando] = useState(false);
   const [msgRevision, setMsgRevision] = useState<{ type: "ok" | "err" | "warn"; text: string } | null>(null);
+  const [modalDeclinar, setModalDeclinar] = useState(false);
+  const [comentarioDeclinar, setComentarioDeclinar] = useState("");
+  const [errModalDeclinar, setErrModalDeclinar] = useState<string | null>(null);
 
   const [comandasGlobales, setComandasGlobales] = useState<ComandaGlobal[]>([]);
   const [loadingGlob, setLoadingGlob] = useState(false);
@@ -197,6 +202,12 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
     () => [...comandas].sort(ordenComandasParaSelect),
     [comandas],
   );
+
+  useEffect(() => {
+    setModalDeclinar(false);
+    setComentarioDeclinar("");
+    setErrModalDeclinar(null);
+  }, [proveedorSel, numSel]);
 
   useEffect(() => {
     let cancel = false;
@@ -508,7 +519,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   ]);
 
   const revisionAdmin = useCallback(
-    async (accion: "aceptar" | "rechazar") => {
+    async (accion: "aceptar" | "rechazar", comentarioDeclinacion?: string) => {
       if (!proveedorSel || !numSel) return;
       const idLineas = idComandasGruposSeleccionados;
       if (idLineas.length === 0) {
@@ -521,10 +532,14 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       setRevisando(true);
       setMsgRevision(null);
       try {
+        const body =
+          accion === "rechazar"
+            ? { idLineas, accion, comentarioDeclinacion: (comentarioDeclinacion ?? "").trim() }
+            : { idLineas, accion };
         const r = await fetch("/api/comandes/recibir", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idLineas, accion }),
+          body: JSON.stringify(body),
         });
         const j = await r.json();
         if (!r.ok) throw new Error(j.error ?? "Error al guardar");
@@ -533,11 +548,18 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
           type: accion === "aceptar" || n > 0 ? "ok" : "warn",
           text: j.mensaje ?? (n > 0 ? "Guardado." : "Sin cambios."),
         });
+        if (accion === "rechazar") {
+          setModalDeclinar(false);
+          setComentarioDeclinar("");
+          setErrModalDeclinar(null);
+        }
         setSeleccion(new Set());
         await cargarLineas(proveedorSel, numSel);
         await fetchResumenComandas(proveedorSel);
       } catch (e) {
-        setMsgRevision({ type: "err", text: e instanceof Error ? e.message : "Error" });
+        const text = e instanceof Error ? e.message : "Error";
+        setMsgRevision({ type: "err", text });
+        if (accion === "rechazar") setErrModalDeclinar(text);
       } finally {
         setRevisando(false);
       }
@@ -638,11 +660,15 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => void revisionAdmin("rechazar")}
+                    onClick={() => {
+                      setErrModalDeclinar(null);
+                      setComentarioDeclinar("");
+                      setModalDeclinar(true);
+                    }}
                     disabled={!proveedorSel || !numSel || revisando || numSeleccionados === 0}
                     className="w-full rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
                   >
-                    {revisando ? "Guardando…" : "Declinar recepción"}
+                    Declinar recepción
                   </button>
                 </div>
               ) : (
@@ -769,6 +795,37 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                           {estadoEtiqueta}
                         </span>
                       </div>
+                      {g.comentarioDeclinacionGrupo ? (
+                        <div
+                          className="mt-2 flex gap-2 border-t border-rose-200/80 pt-2"
+                          onClick={(e) => e.stopPropagation()}
+                          onKeyDown={(e) => e.stopPropagation()}
+                        >
+                          <span className="shrink-0 text-amber-600" title="Motivo de la declinación (empresa)">
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 24 24"
+                              fill="currentColor"
+                              className="h-5 w-5"
+                              aria-hidden
+                            >
+                              <path
+                                fillRule="evenodd"
+                                d="M9.401 3.003c1.155-2 4.043-2 5.197 0l7.355 12.748c1.154 2-.29 4.5-2.599 4.5H4.645c-2.309 0-3.752-2.5-2.598-4.5L9.4 3.003zM12 8.25a.75.75 0 01.75.75v3.75a.75.75 0 01-1.5 0V9a.75.75 0 01.75-.75zm0 8.25a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </span>
+                          <details className="min-w-0 flex-1 text-xs text-rose-950">
+                            <summary className="cursor-pointer font-semibold text-rose-900 outline-none marker:text-rose-700">
+                              Motivo de la declinación (empresa)
+                            </summary>
+                            <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-rose-950/95">
+                              {g.comentarioDeclinacionGrupo}
+                            </p>
+                          </details>
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}
@@ -900,6 +957,78 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
             </div>
           </div>
         </section>
+
+      {modalDeclinar && me?.rol === "ADMIN" && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 p-4"
+          role="presentation"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget && !revisando) {
+              setModalDeclinar(false);
+              setErrModalDeclinar(null);
+            }
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="declinar-titulo"
+            className="w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-5 shadow-xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <h3 id="declinar-titulo" className="text-base font-semibold text-zinc-900">
+              Motivo de la declinación
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-zinc-600">
+              El proveedor verá este comentario bajo la referencia (icono de aviso) hasta que la recepción quede
+              confirmada en empresa.
+            </p>
+            <label htmlFor="declinar-comentario" className="mt-4 block text-xs font-medium text-zinc-700">
+              Comentario
+            </label>
+            <textarea
+              id="declinar-comentario"
+              value={comentarioDeclinar}
+              onChange={(e) => setComentarioDeclinar(e.target.value)}
+              placeholder="Explica el motivo (mínimo 5 caracteres)."
+              maxLength={8000}
+              disabled={revisando}
+              rows={5}
+              className="mt-1.5 w-full resize-y rounded-xl border border-zinc-300 px-3 py-2 text-sm text-zinc-900 shadow-sm focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/25 disabled:bg-zinc-100 disabled:text-zinc-500"
+            />
+            {errModalDeclinar ? <p className="mt-2 text-sm text-red-600">{errModalDeclinar}</p> : null}
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={revisando}
+                onClick={() => {
+                  setModalDeclinar(false);
+                  setErrModalDeclinar(null);
+                }}
+                className="rounded-xl border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={revisando}
+                onClick={() => {
+                  const t = comentarioDeclinar.trim();
+                  if (t.length < 5) {
+                    setErrModalDeclinar("Indica al menos 5 caracteres explicando el motivo.");
+                    return;
+                  }
+                  setErrModalDeclinar(null);
+                  void revisionAdmin("rechazar", t);
+                }}
+                className="rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-400"
+              >
+                {revisando ? "Guardando…" : "Declinar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -139,12 +139,14 @@ export async function aplicarFifoEntradasAcomandes(
           numComanda: numC,
           estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
           recibidoAt: new Date(),
+          comentarioDeclinacion: null,
         },
         update: {
           estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
           recibidoAt: new Date(),
           nomProveedor: nomP,
           numComanda: numC,
+          comentarioDeclinacion: null,
         },
       });
       if (existing?.estado !== EstadoLineaComandesExt.RECIBIDA_EMPRESA) {
@@ -161,6 +163,7 @@ export async function aplicarFifoEntradasAcomandes(
           recibidoAt: null,
           nomProveedor: nomP,
           numComanda: numC,
+          comentarioDeclinacion: null,
         },
       });
       lineasRevertidasDeRecibida++;

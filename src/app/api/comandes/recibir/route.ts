@@ -6,11 +6,26 @@ import { getSessionUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
-const bodySchema = z.object({
-  idLineas: z.array(z.number().int().positive()),
-  /** Sin campo: mismo comportamiento histórico (aceptar recepción). */
-  accion: z.enum(["aceptar", "rechazar"]).optional().default("aceptar"),
-});
+const bodySchema = z
+  .object({
+    idLineas: z.array(z.number().int().positive()),
+    /** Sin campo: mismo comportamiento histórico (aceptar recepción). */
+    accion: z.enum(["aceptar", "rechazar"]).optional().default("aceptar"),
+    /** Obligatorio si accion es rechazar (visible al proveedor). */
+    comentarioDeclinacion: z.string().max(8000).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.accion === "rechazar") {
+      const c = (data.comentarioDeclinacion ?? "").trim();
+      if (c.length < 5) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Indica un comentario de al menos 5 caracteres (motivo de la declinación).",
+          path: ["comentarioDeclinacion"],
+        });
+      }
+    }
+  });
 
 /**
  * Panel empresa (solo ADMIN):
@@ -31,12 +46,22 @@ export async function POST(req: NextRequest) {
   }
 
   const parsed = bodySchema.safeParse(json);
-  if (!parsed.success || parsed.data.idLineas.length === 0) {
-    return NextResponse.json({ error: "Indica idLineas" }, { status: 400 });
+  if (!parsed.success) {
+    const fe = parsed.error.flatten().fieldErrors;
+    const msg =
+      fe.comentarioDeclinacion?.[0] ??
+      fe.idLineas?.[0] ??
+      fe.accion?.[0] ??
+      "Datos inválidos";
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+  if (parsed.data.idLineas.length === 0) {
+    return NextResponse.json({ error: "Indica al menos una línea en idLineas" }, { status: 400 });
   }
 
   const ids = Array.from(new Set(parsed.data.idLineas));
   const accion = parsed.data.accion;
+  const comentarioDeclinacion = (parsed.data.comentarioDeclinacion ?? "").trim();
 
   try {
     if (accion === "aceptar") {
@@ -69,12 +94,14 @@ export async function POST(req: NextRequest) {
               numComanda: r.numComanda,
               estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
               recibidoAt: new Date(),
+              comentarioDeclinacion: null,
             },
             update: {
               estado: EstadoLineaComandesExt.RECIBIDA_EMPRESA,
               recibidoAt: new Date(),
               nomProveedor: r.nomProveedor,
               numComanda: r.numComanda,
+              comentarioDeclinacion: null,
             },
           }),
         ),
@@ -116,12 +143,14 @@ export async function POST(req: NextRequest) {
             numComanda: r.numComanda,
             estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
             recibidoAt: null,
+            comentarioDeclinacion,
           },
           update: {
             estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
             recibidoAt: null,
             nomProveedor: r.nomProveedor,
             numComanda: r.numComanda,
+            comentarioDeclinacion,
           },
         }),
       ),
@@ -129,7 +158,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      mensaje: `Declinadas ${rows.length} línea(s). El proveedor podrá volver a marcarlas y enviarlas.`,
+      mensaje: `Declinadas ${rows.length} línea(s). El proveedor verá el motivo indicado hasta que se confirme recepción.`,
       actualizadas: rows.length,
     });
   } catch (e) {

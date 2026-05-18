@@ -33,6 +33,14 @@ function trimProveedor(p: string | null | undefined): string | null {
   return t.length ? t : null;
 }
 
+/** Algunos drivers devuelven TEXT como Buffer en `$queryRaw`. */
+function strFromDb(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "string") return v;
+  if (typeof Buffer !== "undefined" && Buffer.isBuffer(v)) return v.toString("utf8");
+  return String(v);
+}
+
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req);
   if (!user) {
@@ -207,6 +215,7 @@ export async function GET(req: NextRequest) {
         estadoPortal: string | null;
         enviadoAt: Date | null;
         recibidoAt: Date | null;
+        comentarioDeclinacion: string | null;
       }[]
     >`
       SELECT
@@ -224,7 +233,8 @@ export async function GET(req: NextRequest) {
         c.cerrada,
         e.estado AS estadoPortal,
         e.enviado_at AS enviadoAt,
-        e.recibido_at AS recibidoAt
+        e.recibido_at AS recibidoAt,
+        e.comentario_declinacion AS comentarioDeclinacion
       FROM comandes c
       LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
       WHERE TRIM(c.nomProveedor) = ${effectiveProv}
@@ -234,6 +244,7 @@ export async function GET(req: NextRequest) {
 
     const serializadas = lineas.map((l) => ({
       ...l,
+      comentarioDeclinacion: strFromDb(l.comentarioDeclinacion),
       fechaInsercion: l.fechaInsercion ? l.fechaInsercion.toISOString() : null,
       enviadoAt: l.enviadoAt ? l.enviadoAt.toISOString() : null,
       recibidoAt: l.recibidoAt ? l.recibidoAt.toISOString() : null,

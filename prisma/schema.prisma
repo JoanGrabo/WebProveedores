@@ -84,6 +84,8 @@ model LineaComandesEstado {
   estado           EstadoLineaComandesExt @default(ENVIADA_PROVEEDOR)
   enviadoAt        DateTime               @default(now()) @map("enviado_at")
   recibidoAt       DateTime?              @map("recibido_at")
+  /// Motivo que el admin indica al declinar recepción (visible al proveedor hasta confirmación)
+  comentarioDeclinacion String?           @map("comentario_declinacion") @db.Text
 
   @@index([nomProveedor, numComanda])
   @@index([estado])

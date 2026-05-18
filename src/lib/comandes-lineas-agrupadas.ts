@@ -16,6 +16,7 @@ export type LineaComandaRaw = {
   estadoPortal: string | null;
   enviadoAt: string | null;
   recibidoAt: string | null;
+  comentarioDeclinacion?: string | null;
 };
 
 export type EstadoGrupo =
@@ -41,6 +42,8 @@ export type LineaAgrupada = {
   cerrada: boolean | null;
   /** Estado del grupo: solo completo si todas las filas físicas coinciden. */
   estadoPortal: EstadoGrupo;
+  /** Textos de declinación (empresa) de las líneas del grupo; null si no hay. */
+  comentarioDeclinacionGrupo?: string | null;
   idComandas: number[];
   filas: number;
 };
@@ -70,7 +73,7 @@ export function estadoPortalGrupo(estados: (string | null)[]): EstadoGrupo {
 }
 
 export function agruparLineasComanda(lineas: LineaComandaRaw[]): LineaAgrupada[] {
-  const map = new Map<string, LineaAgrupada & { _estados: (string | null)[] }>();
+  const map = new Map<string, LineaAgrupada & { _estados: (string | null)[]; _comentariosDecl: string[] }>();
 
   for (const l of lineas) {
     const key = grupoKeyFromParts(l.OP, l.codiPieza);
@@ -92,12 +95,17 @@ export function agruparLineasComanda(lineas: LineaComandaRaw[]): LineaAgrupada[]
         idComandas: [],
         filas: 0,
         _estados: [],
+        _comentariosDecl: [],
       };
       map.set(key, g);
     }
     g.cantidadTotal += Number(l.cantidad) || 0;
     g.idComandas.push(l.idComanda);
     g._estados.push(l.estadoPortal);
+    if (l.estadoPortal === "RECHAZADA_EMPRESA") {
+      const c = l.comentarioDeclinacion?.trim();
+      if (c && !g._comentariosDecl.includes(c)) g._comentariosDecl.push(c);
+    }
     g.filas += 1;
     if (l.fechaInsercion && (!g.fechaInsercion || l.fechaInsercion < g.fechaInsercion)) {
       g.fechaInsercion = l.fechaInsercion;
@@ -106,9 +114,11 @@ export function agruparLineasComanda(lineas: LineaComandaRaw[]): LineaAgrupada[]
     if (l.reparacion && !g.reparacion) g.reparacion = l.reparacion;
   }
 
-  const out = Array.from(map.values()).map(({ _estados, ...g }) => ({
+  const out = Array.from(map.values()).map(({ _estados, _comentariosDecl, ...g }) => ({
     ...g,
     estadoPortal: estadoPortalGrupo(_estados),
+    comentarioDeclinacionGrupo:
+      _comentariosDecl.length > 0 ? _comentariosDecl.join("\n\n") : null,
   }));
 
   out.sort((a, b) => {
