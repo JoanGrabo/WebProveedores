@@ -46,12 +46,13 @@ function LoginForm() {
           <Image
             src="/logo-astech.png"
             alt="Astech"
-            width={320}
-            height={120}
+            width={120}
+            height={48}
             priority
-            className="mx-auto h-auto w-full max-w-[min(100%,20rem)] object-contain"
+            unoptimized
+            className="mx-auto h-12 w-auto object-contain"
           />
-          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
+          <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Iniciar sesión</h1>
           <p className="mt-2 text-sm text-zinc-400">Cada proveedor ve solo sus comandas. Tras entrar irás al panel.</p>
         </div>
