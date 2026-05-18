@@ -209,7 +209,7 @@ export default function AdminUsuariosPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="w-full">
       <header className="mb-8">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Administración</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Usuarios</h1>

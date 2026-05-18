@@ -68,7 +68,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
       apiRef.current = null;
       h.innerHTML = "";
       const table = document.createElement("table");
-      table.className = "display stripe hover nowrap w-full text-left text-sm text-zinc-800";
+      table.className = "display stripe hover w-full text-left text-sm text-zinc-800";
       h.appendChild(table);
 
       const onTableReady = makeInitCompleteWithColumnFilters(
@@ -112,7 +112,7 @@ export function UsuariosAdminDataTable({ rows, loading, error, onEdit }: Props) 
             title: "Acciones",
             orderable: false,
             searchable: false,
-            className: "w-20",
+            className: "min-w-[5.5rem] whitespace-nowrap",
             render: (_d: unknown, _t: string, row: UsuarioRow) =>
               `<button type="button" class="inline-flex items-center justify-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-sky-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-500/30 dt-user-edit" data-id="${escAttr(row.id)}">Editar</button>`,
           },
