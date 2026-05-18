@@ -153,3 +153,61 @@ export function resumenGruposPorComanda(
   }
   return res;
 }
+
+export type ResumenProveedorComanda = {
+  nomProveedor: string;
+  numComanda: string;
+  total: number;
+  enviadas: number;
+};
+
+/** Progreso agrupado por proveedor + comanda (tabla «Todas las comandas» admin). */
+export function resumenGruposPorProveedorComanda(
+  lineas: {
+    nomProveedor: string;
+    numComanda: string;
+    OP: string | null;
+    codiPieza: string | null;
+    estadoPortal: string | null;
+  }[],
+): ResumenProveedorComanda[] {
+  const porComanda = new Map<string, Map<string, (string | null)[]>>();
+
+  for (const l of lineas) {
+    const prov = l.nomProveedor.trim();
+    const num = l.numComanda.trim();
+    if (!prov || !num) continue;
+    const pk = `${prov}|${num}`;
+    const gk = grupoKeyFromParts(l.OP, l.codiPieza);
+    let grupos = porComanda.get(pk);
+    if (!grupos) {
+      grupos = new Map();
+      porComanda.set(pk, grupos);
+    }
+    const arr = grupos.get(gk) ?? [];
+    arr.push(l.estadoPortal);
+    grupos.set(gk, arr);
+  }
+
+  const out: ResumenProveedorComanda[] = [];
+  for (const [pk, grupos] of Array.from(porComanda.entries())) {
+    const sep = pk.indexOf("|");
+    const nomProveedor = pk.slice(0, sep);
+    const numComanda = pk.slice(sep + 1);
+    let total = 0;
+    let enviadas = 0;
+    for (const estados of Array.from(grupos.values())) {
+      total++;
+      if (grupoCompletadoParaProgreso(estadoPortalGrupo(estados))) enviadas++;
+    }
+    out.push({ nomProveedor, numComanda, total, enviadas });
+  }
+
+  out.sort((a, b) => {
+    const p = a.nomProveedor.localeCompare(b.nomProveedor, undefined, { sensitivity: "base" });
+    if (p !== 0) return p;
+    return a.numComanda.localeCompare(b.numComanda, undefined, { numeric: true, sensitivity: "base" });
+  });
+
+  return out;
+}

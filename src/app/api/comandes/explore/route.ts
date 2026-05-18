@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
-import { agruparLineasComanda, resumenGruposPorComanda } from "@/lib/comandes-lineas-agrupadas";
+import {
+  agruparLineasComanda,
+  resumenGruposPorComanda,
+  resumenGruposPorProveedorComanda,
+} from "@/lib/comandes-lineas-agrupadas";
 import { Rol } from "@prisma/client";
 import { z } from "zod";
 
@@ -57,28 +61,28 @@ export async function GET(req: NextRequest) {
       if (user.rol !== Rol.ADMIN) {
         return NextResponse.json({ error: "Solo administradores" }, { status: 403 });
       }
-      const rows = await prisma.$queryRaw<
-        { nomProveedor: string; numComanda: string; total: bigint; enviadas: bigint }[]
+      const filas = await prisma.$queryRaw<
+        {
+          nomProveedor: string;
+          numComanda: string;
+          OP: string | null;
+          codiPieza: string | null;
+          estadoPortal: string | null;
+        }[]
       >`
         SELECT
           TRIM(c.nomProveedor) AS nomProveedor,
           TRIM(c.numComanda) AS numComanda,
-          CAST(COUNT(*) AS UNSIGNED) AS total,
-          CAST(COALESCE(SUM(IF(e.estado IN ('ENVIADA_PROVEEDOR', 'RECIBIDA_EMPRESA'), 1, 0)), 0) AS UNSIGNED) AS enviadas
+          c.OP,
+          c.codiPieza,
+          e.estado AS estadoPortal
         FROM comandes c
         LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
         WHERE c.nomProveedor IS NOT NULL AND TRIM(c.nomProveedor) <> ''
           AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
-        GROUP BY TRIM(c.nomProveedor), TRIM(c.numComanda)
-        ORDER BY nomProveedor ASC, numComanda ASC
       `;
-      const comandas = rows.map((r) => ({
-        nomProveedor: r.nomProveedor,
-        numComanda: r.numComanda,
-        total: Number(r.total),
-        enviadas: Number(r.enviadas),
-      }));
-      return NextResponse.json({ comandas });
+      const comandas = resumenGruposPorProveedorComanda(filas);
+      return NextResponse.json({ comandas, agrupado: true });
     }
 
     if (parsed.data.step === "pendientes-recepcion-admin") {
