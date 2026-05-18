@@ -203,26 +203,37 @@ export async function aplicarFifoTodasPiezasComanda(
     return { piezasProcesadas: 0, lineasMarcadasRecibidas: 0, lineasRevertidasDeRecibida: 0 };
   }
 
-  const piezasRows = await prisma.$queryRaw<{ codigoPieza: string }[]>`
-    SELECT DISTINCT pieza AS codigoPieza FROM (
-      SELECT TRIM(codiPieza) AS pieza
+  const [piezasComandes, piezasEntradas] = await Promise.all([
+    prisma.$queryRaw<{ pieza: string | null }[]>`
+      SELECT DISTINCT TRIM(codiPieza) AS pieza
       FROM comandes
-      WHERE TRIM(nomProveedor) = ${prov} AND TRIM(numComanda) = ${num} AND TRIM(codiPieza) <> ''
-      UNION
-      SELECT TRIM(codigoPieza) AS pieza
+      WHERE TRIM(nomProveedor) = ${prov}
+        AND TRIM(numComanda) = ${num}
+        AND TRIM(codiPieza) <> ''
+    `,
+    prisma.$queryRaw<{ pieza: string | null }[]>`
+      SELECT DISTINCT TRIM(codigoPieza) AS pieza
       FROM entradas
-      WHERE TRIM(Proveedor) = ${prov} AND TRIM(numeroComanda) = ${num} AND TRIM(codigoPieza) <> ''
-    ) AS u
-    WHERE pieza IS NOT NULL AND pieza <> ''
-  `;
+      WHERE TRIM(Proveedor) = ${prov}
+        AND TRIM(numeroComanda) = ${num}
+        AND TRIM(codigoPieza) <> ''
+    `,
+  ]);
+
+  const piezasUnicas: string[] = [];
+  const visto = new Set<string>();
+  for (const row of [...piezasComandes, ...piezasEntradas]) {
+    const pieza = row.pieza?.trim();
+    if (!pieza || visto.has(pieza)) continue;
+    visto.add(pieza);
+    piezasUnicas.push(pieza);
+  }
 
   let lineasMarcadasRecibidas = 0;
   let lineasRevertidasDeRecibida = 0;
 
   await prisma.$transaction(async (tx) => {
-    for (const row of piezasRows) {
-      const pieza = row.codigoPieza?.trim();
-      if (!pieza) continue;
+    for (const pieza of piezasUnicas) {
       const r = await aplicarFifoEntradasAcomandes(tx, prov, num, pieza);
       lineasMarcadasRecibidas += r.lineasMarcadasRecibidas;
       lineasRevertidasDeRecibida += r.lineasRevertidasDeRecibida;
@@ -230,7 +241,7 @@ export async function aplicarFifoTodasPiezasComanda(
   });
 
   return {
-    piezasProcesadas: piezasRows.length,
+    piezasProcesadas: piezasUnicas.length,
     lineasMarcadasRecibidas,
     lineasRevertidasDeRecibida,
   };
