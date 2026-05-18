@@ -16,7 +16,7 @@ const bodySchema = z.object({
  * Panel empresa (solo ADMIN):
  * - aceptar: marca líneas como recibidas en empresa. Puede ser aunque el proveedor no haya
  *   pulsado «enviado» (crea/actualiza fila en RECIBIDA).
- * - rechazar: líneas en ENVIADA_PROVEEDOR (naranja) o RECIBIDA_EMPRESA (verde) → RECHAZADA_EMPRESA.
+ * - rechazar: cualquier línea de comandes → RECHAZADA_EMPRESA (también pendientes sin envío previo).
  */
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req);
@@ -87,25 +87,50 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const res = await prisma.lineaComandesEstado.updateMany({
-      where: {
-        idLineaComandes: { in: ids },
-        estado: {
-          in: [EstadoLineaComandesExt.ENVIADA_PROVEEDOR, EstadoLineaComandesExt.RECIBIDA_EMPRESA],
-        },
-      },
-      data: {
-        estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
-        recibidoAt: null,
-      },
-    });
+    const rows = await prisma.$queryRaw<
+      { idComanda: number; nomProveedor: string; numComanda: string }[]
+    >`
+      SELECT
+        c.idComanda AS idComanda,
+        TRIM(c.nomProveedor) AS nomProveedor,
+        TRIM(c.numComanda) AS numComanda
+      FROM comandes c
+      WHERE c.idComanda IN (${Prisma.join(ids)})
+    `;
+    const found = new Set(rows.map((r) => r.idComanda));
+    const missing = ids.filter((id) => !found.has(id));
+    if (missing.length > 0) {
+      return NextResponse.json(
+        { error: "Algún id de línea no existe en la tabla comandes.", missing },
+        { status: 400 },
+      );
+    }
+
+    await prisma.$transaction(
+      rows.map((r) =>
+        prisma.lineaComandesEstado.upsert({
+          where: { idLineaComandes: r.idComanda },
+          create: {
+            idLineaComandes: r.idComanda,
+            nomProveedor: r.nomProveedor,
+            numComanda: r.numComanda,
+            estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
+            recibidoAt: null,
+          },
+          update: {
+            estado: EstadoLineaComandesExt.RECHAZADA_EMPRESA,
+            recibidoAt: null,
+            nomProveedor: r.nomProveedor,
+            numComanda: r.numComanda,
+          },
+        }),
+      ),
+    );
+
     return NextResponse.json({
       ok: true,
-      mensaje:
-        res.count > 0
-          ? `Declinadas ${res.count} línea(s). El proveedor podrá volver a marcarlas y enviarlas.`
-          : "Ninguna línea estaba en naranja (enviada) ni en verde (confirmada). Selecciona líneas en esos estados para declinar.",
-      actualizadas: res.count,
+      mensaje: `Declinadas ${rows.length} línea(s). El proveedor podrá volver a marcarlas y enviarlas.`,
+      actualizadas: rows.length,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

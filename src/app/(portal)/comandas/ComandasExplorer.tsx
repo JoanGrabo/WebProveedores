@@ -43,22 +43,22 @@ function grupoSeleccionado(g: LineaAgrupada, seleccion: Set<number>): boolean {
 function cardTone(l: LineaAgrupada, seleccionado: boolean, rol: Me["rol"] | null): string {
   if (l.estadoPortal === "PARCIAL") {
     const base = "border-l-[6px] border-amber-500 bg-amber-50/90 shadow-sm";
-    if (seleccionado) return `${base} ring-2 ring-amber-300`;
+    if (seleccionado) return `${base} ring-2 ring-amber-400 ring-offset-1`;
     return base;
   }
   if (l.estadoPortal === "RECIBIDA_EMPRESA") {
     const base = "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
-    if (seleccionado && rol === "ADMIN") return `${base} ring-2 ring-emerald-300`;
+    if (seleccionado) return `${base} ring-2 ring-emerald-400 ring-offset-1`;
     return base;
   }
   if (l.estadoPortal === "RECHAZADA_EMPRESA") {
     const base = "border-l-[6px] border-rose-500 bg-rose-50/95 shadow-sm";
-    if (seleccionado && rol === "PROVEEDOR") return `${base} ring-2 ring-rose-300`;
+    if (seleccionado) return `${base} ring-2 ring-rose-400 ring-offset-1`;
     return base;
   }
   if (l.estadoPortal === "ENVIADA_PROVEEDOR") {
     const base = "border-l-[6px] border-orange-400 bg-orange-50 shadow-sm";
-    if (seleccionado && (rol === "ADMIN" || rol === "PROVEEDOR")) return `${base} ring-2 ring-orange-300`;
+    if (seleccionado) return `${base} ring-2 ring-orange-400 ring-offset-1`;
     return base;
   }
   if (seleccionado) {
@@ -426,11 +426,10 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
     ).length;
   }, [gruposSeleccionados]);
 
-  const idLineasDeclinarAdmin = useMemo(() => {
-    return gruposSeleccionados
-      .filter((g) => g.estadoPortal === "ENVIADA_PROVEEDOR" || g.estadoPortal === "RECIBIDA_EMPRESA")
-      .flatMap((g) => g.idComandas);
-  }, [gruposSeleccionados]);
+  const idComandasGruposSeleccionados = useMemo(
+    () => gruposSeleccionados.flatMap((g) => g.idComandas),
+    [gruposSeleccionados],
+  );
 
   const enviar = useCallback(async () => {
     if (!proveedorSel || !numSel) return;
@@ -511,19 +510,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   const revisionAdmin = useCallback(
     async (accion: "aceptar" | "rechazar") => {
       if (!proveedorSel || !numSel) return;
-      const idLineas =
-        accion === "rechazar"
-          ? idLineasDeclinarAdmin
-          : gruposSeleccionados
-              .filter((g) => g.estadoPortal === "ENVIADA_PROVEEDOR")
-              .flatMap((g) => g.idComandas);
+      const idLineas = idComandasGruposSeleccionados;
       if (idLineas.length === 0) {
         setMsgRevision({
           type: "err",
-          text:
-            accion === "rechazar"
-              ? "Selecciona líneas en naranja (enviadas) o en verde (confirmadas) para declinar."
-              : "Selecciona al menos una línea.",
+          text: "Selecciona al menos una referencia (fila agrupada).",
         });
         return;
       }
@@ -551,7 +542,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         setRevisando(false);
       }
     },
-    [proveedorSel, numSel, gruposSeleccionados, idLineasDeclinarAdmin, cargarLineas, fetchResumenComandas],
+    [proveedorSel, numSel, idComandasGruposSeleccionados, cargarLineas, fetchResumenComandas],
   );
 
   async function logout() {
@@ -611,6 +602,13 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   <strong className="text-orange-700">Enviar selección</strong>.
                 </p>
               )}
+              {me?.rol === "ADMIN" && (
+                <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
+                  Selecciona referencias (agrupadas por pieza + OP) y confirma o declina en empresa. No hace falta que el
+                  proveedor las haya marcado como enviadas: puedes confirmar en <strong className="text-zinc-800">blanco</strong>,
+                  naranja, parcial o declinada.
+                </p>
+              )}
               {progresoLineasActuales && (
                 <p className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
                   <span className="tabular-nums text-base font-semibold text-zinc-900">
@@ -641,9 +639,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   <button
                     type="button"
                     onClick={() => void revisionAdmin("rechazar")}
-                    disabled={
-                      !proveedorSel || !numSel || revisando || idLineasDeclinarAdmin.length === 0
-                    }
+                    disabled={!proveedorSel || !numSel || revisando || numSeleccionados === 0}
                     className="w-full rounded-xl bg-rose-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-zinc-500 disabled:shadow-none sm:w-auto"
                   >
                     {revisando ? "Guardando…" : "Declinar recepción"}
@@ -710,7 +706,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                   {msgEnvio.text}
                 </div>
               )}
-              {me?.rol === "PROVEEDOR" && (
+              {(me?.rol === "PROVEEDOR" || me?.rol === "ADMIN") && (
                 <p className="mt-3 text-xs text-zinc-500">
                   {numSeleccionados > 0 ? `${numSeleccionados} referencia(s) seleccionada(s).` : "Nada seleccionado."}
                 </p>
