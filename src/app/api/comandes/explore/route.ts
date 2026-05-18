@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { agruparLineasComanda, resumenGruposPorComanda } from "@/lib/comandes-lineas-agrupadas";
 import { Rol } from "@prisma/client";
 import { z } from "zod";
 
@@ -171,23 +172,23 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ error: "No autorizado para ese proveedor" }, { status: 403 });
       }
 
-      const rows = await prisma.$queryRaw<{ numComanda: string; total: bigint; enviadas: bigint }[]>`
+      const filas = await prisma.$queryRaw<
+        { numComanda: string; OP: string | null; codiPieza: string | null; estadoPortal: string | null }[]
+      >`
         SELECT
           TRIM(c.numComanda) AS numComanda,
-          CAST(COUNT(*) AS UNSIGNED) AS total,
-          CAST(COALESCE(SUM(IF(e.estado IN ('ENVIADA_PROVEEDOR', 'RECIBIDA_EMPRESA'), 1, 0)), 0) AS UNSIGNED) AS enviadas
+          c.OP,
+          c.codiPieza,
+          e.estado AS estadoPortal
         FROM comandes c
         LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
         WHERE TRIM(c.nomProveedor) = ${effective}
-        GROUP BY TRIM(c.numComanda)
-        HAVING numComanda IS NOT NULL AND numComanda <> ''
-        ORDER BY numComanda ASC
+          AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
       `;
-      const comandas = rows.map((r) => ({
-        numComanda: r.numComanda,
-        total: Number(r.total),
-        enviadas: Number(r.enviadas),
-      }));
+      const resumen = resumenGruposPorComanda(filas);
+      const comandas = Array.from(resumen.entries())
+        .map(([numComanda, { total, enviadas }]) => ({ numComanda, total, enviadas }))
+        .sort((a, b) => a.numComanda.localeCompare(b.numComanda, undefined, { numeric: true }));
       return NextResponse.json({ comandas });
     }
 
@@ -252,7 +253,9 @@ export async function GET(req: NextRequest) {
       recibidoAt: l.recibidoAt ? l.recibidoAt.toISOString() : null,
     }));
 
-    return NextResponse.json({ lineas: serializadas });
+    const agrupadas = agruparLineasComanda(serializadas);
+
+    return NextResponse.json({ lineas: agrupadas, agrupado: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error desconocido";
     return NextResponse.json({ error: msg }, { status: 500 });

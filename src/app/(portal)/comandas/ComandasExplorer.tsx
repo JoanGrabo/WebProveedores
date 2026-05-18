@@ -3,24 +3,11 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { ComandasGlobalesDataTable } from "@/components/datatables/ComandasGlobalesDataTable";
-
-type Linea = {
-  idComanda: number;
-  numComanda: string | null;
-  nomProveedor: string | null;
-  reparacion: string | null;
-  codiPieza: string | null;
-  codigoFab: string | null;
-  cantidad: number | null;
-  codigoConjunto: string | null;
-  OP: string | null;
-  tipus: string | null;
-  fechaInsercion: string | null;
-  cerrada: boolean | null;
-  estadoPortal: string | null;
-  enviadoAt: string | null;
-  recibidoAt: string | null;
-};
+import {
+  grupoCompletadoParaProgreso,
+  type EstadoGrupo,
+  type LineaAgrupada,
+} from "@/lib/comandes-lineas-agrupadas";
 
 type ComandaResumen = {
   numComanda: string;
@@ -48,8 +35,17 @@ function qs(params: Record<string, string>) {
   return new URLSearchParams(params).toString();
 }
 
-/** Estilo de tarjeta de línea (clic para seleccionar según rol y estado). */
-function cardTone(l: Linea, seleccionado: boolean, rol: Me["rol"] | null): string {
+function grupoSeleccionado(g: LineaAgrupada, seleccion: Set<number>): boolean {
+  return g.idComandas.length > 0 && g.idComandas.every((id) => seleccion.has(id));
+}
+
+/** Estilo de tarjeta de línea agrupada (clic para seleccionar según rol y estado). */
+function cardTone(l: LineaAgrupada, seleccionado: boolean, rol: Me["rol"] | null): string {
+  if (l.estadoPortal === "PARCIAL") {
+    const base = "border-l-[6px] border-amber-500 bg-amber-50/90 shadow-sm";
+    if (seleccionado) return `${base} ring-2 ring-amber-300`;
+    return base;
+  }
   if (l.estadoPortal === "RECIBIDA_EMPRESA") {
     const base = "border-l-[6px] border-emerald-500 bg-emerald-50/95 shadow-sm";
     if (seleccionado && rol === "ADMIN") return `${base} ring-2 ring-emerald-300`;
@@ -69,6 +65,22 @@ function cardTone(l: Linea, seleccionado: boolean, rol: Me["rol"] | null): strin
     return "border border-orange-300 bg-orange-50/90 ring-2 ring-orange-200 shadow-sm";
   }
   return "border border-zinc-200 bg-white shadow-sm hover:border-zinc-300 hover:bg-zinc-50/80";
+}
+
+function etiquetaEstadoGrupo(estado: EstadoGrupo): string {
+  if (estado === "RECIBIDA_EMPRESA") return "Recibida";
+  if (estado === "ENVIADA_PROVEEDOR") return "Enviada (pendiente revisión)";
+  if (estado === "RECHAZADA_EMPRESA") return "Declinada";
+  if (estado === "PARCIAL") return "Parcial (completa el grupo)";
+  return "Pendiente";
+}
+
+function badgeEstadoGrupo(estado: EstadoGrupo): string {
+  if (estado === "RECIBIDA_EMPRESA") return "bg-emerald-100 text-emerald-800";
+  if (estado === "ENVIADA_PROVEEDOR") return "bg-orange-100 text-orange-900";
+  if (estado === "RECHAZADA_EMPRESA") return "bg-rose-100 text-rose-900";
+  if (estado === "PARCIAL") return "bg-amber-100 text-amber-950";
+  return "bg-zinc-100 text-zinc-600";
 }
 
 function selectClass(disabled: boolean) {
@@ -120,9 +132,13 @@ function LineasLeyenda({ rol }: { rol: "ADMIN" | "PROVEEDOR" }) {
           <span className="h-2 w-2 rounded-full bg-white ring-1 ring-zinc-300" />
           Pendiente
         </span>
+        <span className="inline-flex items-center gap-2 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-amber-950">
+          <span className="h-2 w-2 rounded-full bg-amber-500" />
+          Parcial (faltan conjuntos por enviar o confirmar)
+        </span>
         <span className="inline-flex items-center gap-2 rounded-full border border-orange-200 bg-orange-50 px-3 py-1 text-orange-900">
           <span className="h-2 w-2 rounded-full bg-orange-400" />
-          {prov ? "Enviada (esperando confirmación)" : "Línea enviada (proveedor)"}
+          {prov ? "Enviada (esperando confirmación)" : "Grupo enviado (proveedor)"}
         </span>
         <span className="inline-flex items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-rose-900">
           <span className="h-2 w-2 rounded-full bg-rose-500" />
@@ -162,7 +178,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
   const [errCom, setErrCom] = useState<string | null>(null);
 
   const [numSel, setNumSel] = useState<string | null>(null);
-  const [lineas, setLineas] = useState<Linea[]>([]);
+  const [lineas, setLineas] = useState<LineaAgrupada[]>([]);
   const [loadingLin, setLoadingLin] = useState(false);
   const [errLin, setErrLin] = useState<string | null>(null);
 
@@ -314,7 +330,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       );
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Error al cargar líneas");
-      const raw = (j.lineas ?? []) as Linea[];
+      const raw = (j.lineas ?? []) as LineaAgrupada[];
       setLineas(raw);
     } catch (e) {
       setErrLin(e instanceof Error ? e.message : "Error");
@@ -355,60 +371,66 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
     }
   }, [sessionReady, me, initialProveedor, initialComanda, cargarComandas, cargarLineas]);
 
-  const puedeSeleccionarLinea = useCallback(
-    (l: Linea) => {
+  const puedeSeleccionarGrupo = useCallback(
+    (g: LineaAgrupada) => {
       if (!me) return false;
       if (me.rol === "ADMIN") return true;
+      if (g.estadoPortal === "RECIBIDA_EMPRESA") return false;
       return (
-        l.estadoPortal == null ||
-        l.estadoPortal === "RECHAZADA_EMPRESA" ||
-        l.estadoPortal === "ENVIADA_PROVEEDOR"
+        g.estadoPortal == null ||
+        g.estadoPortal === "RECHAZADA_EMPRESA" ||
+        g.estadoPortal === "ENVIADA_PROVEEDOR" ||
+        g.estadoPortal === "PARCIAL"
       );
     },
     [me],
   );
 
-  const toggleLinea = useCallback(
-    (l: Linea) => {
-      if (!puedeSeleccionarLinea(l)) return;
+  const toggleGrupo = useCallback(
+    (g: LineaAgrupada) => {
+      if (!puedeSeleccionarGrupo(g)) return;
       setSeleccion((prev) => {
         const n = new Set(prev);
-        if (n.has(l.idComanda)) n.delete(l.idComanda);
-        else n.add(l.idComanda);
+        const activo = grupoSeleccionado(g, prev);
+        for (const id of g.idComandas) {
+          if (activo) n.delete(id);
+          else n.add(id);
+        }
         return n;
       });
       setMsgEnvio(null);
       setMsgRevision(null);
     },
-    [puedeSeleccionarLinea],
+    [puedeSeleccionarGrupo],
   );
 
-  const numSeleccionados = useMemo(() => seleccion.size, [seleccion]);
+  const gruposSeleccionados = useMemo(
+    () => lineas.filter((g) => grupoSeleccionado(g, seleccion)),
+    [lineas, seleccion],
+  );
+
+  const numSeleccionados = gruposSeleccionados.length;
 
   const idLineasEnviadasSeleccionadas = useMemo(() => {
-    return lineas
-      .filter((l) => seleccion.has(l.idComanda) && l.estadoPortal === "ENVIADA_PROVEEDOR")
-      .map((l) => l.idComanda);
-  }, [lineas, seleccion]);
+    return gruposSeleccionados
+      .filter((g) => g.estadoPortal === "ENVIADA_PROVEEDOR")
+      .flatMap((g) => g.idComandas);
+  }, [gruposSeleccionados]);
 
   const numPendientesORechazoSeleccion = useMemo(() => {
-    return lineas.filter(
-      (l) =>
-        seleccion.has(l.idComanda) &&
-        (l.estadoPortal == null || l.estadoPortal === "RECHAZADA_EMPRESA"),
+    return gruposSeleccionados.filter(
+      (g) =>
+        g.estadoPortal == null ||
+        g.estadoPortal === "RECHAZADA_EMPRESA" ||
+        g.estadoPortal === "PARCIAL",
     ).length;
-  }, [lineas, seleccion]);
+  }, [gruposSeleccionados]);
 
-  /** Líneas que admin puede declinar: enviadas (naranja) o ya confirmadas (verde). */
   const idLineasDeclinarAdmin = useMemo(() => {
-    return lineas
-      .filter(
-        (l) =>
-          seleccion.has(l.idComanda) &&
-          (l.estadoPortal === "ENVIADA_PROVEEDOR" || l.estadoPortal === "RECIBIDA_EMPRESA"),
-      )
-      .map((l) => l.idComanda);
-  }, [lineas, seleccion]);
+    return gruposSeleccionados
+      .filter((g) => g.estadoPortal === "ENVIADA_PROVEEDOR" || g.estadoPortal === "RECIBIDA_EMPRESA")
+      .flatMap((g) => g.idComandas);
+  }, [gruposSeleccionados]);
 
   const enviar = useCallback(async () => {
     if (!proveedorSel || !numSel) return;
@@ -491,14 +513,10 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
       if (!proveedorSel || !numSel) return;
       const idLineas =
         accion === "rechazar"
-          ? lineas
-              .filter(
-                (l) =>
-                  seleccion.has(l.idComanda) &&
-                  (l.estadoPortal === "ENVIADA_PROVEEDOR" || l.estadoPortal === "RECIBIDA_EMPRESA"),
-              )
-              .map((l) => l.idComanda)
-          : Array.from(seleccion);
+          ? idLineasDeclinarAdmin
+          : gruposSeleccionados
+              .filter((g) => g.estadoPortal === "ENVIADA_PROVEEDOR")
+              .flatMap((g) => g.idComandas);
       if (idLineas.length === 0) {
         setMsgRevision({
           type: "err",
@@ -533,7 +551,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
         setRevisando(false);
       }
     },
-    [proveedorSel, numSel, seleccion, lineas, cargarLineas, fetchResumenComandas],
+    [proveedorSel, numSel, gruposSeleccionados, idLineasDeclinarAdmin, cargarLineas, fetchResumenComandas],
   );
 
   async function logout() {
@@ -543,9 +561,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
 
   const progresoLineasActuales = useMemo(() => {
     if (lineas.length === 0) return null;
-    const enviadas = lineas.filter(
-      (l) => l.estadoPortal === "ENVIADA_PROVEEDOR" || l.estadoPortal === "RECIBIDA_EMPRESA",
-    ).length;
+    const enviadas = lineas.filter((g) => grupoCompletadoParaProgreso(g.estadoPortal)).length;
     return { enviadas, total: lineas.length };
   }, [lineas]);
 
@@ -589,9 +605,10 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
               <h2 className="text-sm font-semibold uppercase tracking-wider text-zinc-600">Líneas</h2>
               {me?.rol === "PROVEEDOR" && (
                 <p className="mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500">
-                  Toca las que estén <strong className="text-zinc-800">pendientes</strong> o <strong className="text-rose-800">declinadas</strong>, pulsa{" "}
-                  <strong className="text-orange-700">Enviar selección</strong> (naranja). Si una naranja{" "}
-                  <strong className="text-zinc-800">aún no</strong> está confirmada por administración, puedes quitar el envío y volver a pendiente.
+                  Piezas iguales en distintos conjuntos se suman en una sola fila (cantidad total). El estado es del{" "}
+                  <strong className="text-zinc-800">grupo</strong>: hay que enviar o confirmar todas las unidades juntas.
+                  Toca pendientes, <strong className="text-amber-800">parciales</strong> o declinadas y pulsa{" "}
+                  <strong className="text-orange-700">Enviar selección</strong>.
                 </p>
               )}
               {progresoLineasActuales && (
@@ -600,7 +617,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                     {progresoLineasActuales.enviadas}/{progresoLineasActuales.total}
                   </span>
                   <span>
-                    {me?.rol === "PROVEEDOR" ? "Enviadas o en verde en empresa" : "líneas enviadas o recibidas"}
+                    {me?.rol === "PROVEEDOR" ? "referencias enviadas o confirmadas" : "referencias enviadas o recibidas"}
                   </span>
                   {progresoLineasActuales.enviadas === progresoLineasActuales.total && progresoLineasActuales.total > 0 && (
                     <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold uppercase text-emerald-800">
@@ -695,55 +712,53 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
               )}
               {me?.rol === "PROVEEDOR" && (
                 <p className="mt-3 text-xs text-zinc-500">
-                  {numSeleccionados > 0 ? `${numSeleccionados} línea(s) seleccionadas.` : "Nada seleccionado."}
+                  {numSeleccionados > 0 ? `${numSeleccionados} referencia(s) seleccionada(s).` : "Nada seleccionado."}
                 </p>
               )}
               <div className="mt-3 max-h-[min(70vh,40rem)] space-y-1.5 overflow-y-auto pr-1">
-                {lineas.map((l) => {
-                  const sel = seleccion.has(l.idComanda);
-                  const bloqueada = !puedeSeleccionarLinea(l);
-                  const estadoEtiqueta =
-                    l.estadoPortal === "RECIBIDA_EMPRESA"
-                      ? "Recibida"
-                      : l.estadoPortal === "ENVIADA_PROVEEDOR"
-                        ? "Enviada (pendiente revisión)"
-                        : l.estadoPortal === "RECHAZADA_EMPRESA"
-                          ? "Declinada"
-                          : "Pendiente";
-                  const fechaIns = l.fechaInsercion
-                    ? new Date(l.fechaInsercion).toLocaleString("es-ES", {
+                {lineas.map((g) => {
+                  const sel = grupoSeleccionado(g, seleccion);
+                  const bloqueada = !puedeSeleccionarGrupo(g);
+                  const estadoEtiqueta = etiquetaEstadoGrupo(g.estadoPortal);
+                  const fechaIns = g.fechaInsercion
+                    ? new Date(g.fechaInsercion).toLocaleString("es-ES", {
                         dateStyle: "short",
                         timeStyle: "short",
                       })
                     : "—";
                   return (
                     <article
-                      key={l.idComanda}
+                      key={g.grupoKey}
                       role={bloqueada ? undefined : "button"}
                       tabIndex={bloqueada ? undefined : 0}
-                      onClick={() => toggleLinea(l)}
+                      onClick={() => toggleGrupo(g)}
                       onKeyDown={(ev) => {
                         if (bloqueada) return;
                         if (ev.key === "Enter" || ev.key === " ") {
                           ev.preventDefault();
-                          toggleLinea(l);
+                          toggleGrupo(g);
                         }
                       }}
-                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(l, sel, me?.rol ?? null)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(g, sel, me?.rol ?? null)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
                     >
                       <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 sm:items-center">
                           <div>
                             <span className="text-[10px] font-medium uppercase text-zinc-400">Pieza</span>
-                            <p className="truncate font-mono text-sm font-semibold text-zinc-900">{l.codiPieza ?? "—"}</p>
+                            <p className="truncate font-mono text-sm font-semibold text-zinc-900">{g.codiPieza ?? "—"}</p>
                           </div>
                           <div>
-                            <span className="text-[10px] font-medium uppercase text-zinc-400">Cantidad</span>
-                            <p className="text-sm font-semibold text-zinc-900">{l.cantidad ?? "—"}</p>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">OP</span>
+                            <p className="truncate font-mono text-sm font-semibold text-zinc-900">{g.OP ?? "—"}</p>
                           </div>
-                          <div className="min-w-0 sm:col-span-1">
-                            <span className="text-[10px] font-medium uppercase text-zinc-400">Conjunto</span>
-                            <p className="truncate font-mono text-sm text-zinc-800">{l.codigoConjunto ?? "—"}</p>
+                          <div>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Cantidad total</span>
+                            <p className="text-sm font-semibold text-zinc-900">
+                              {g.cantidadTotal}
+                              {g.filas > 1 ? (
+                                <span className="ml-1 text-xs font-normal text-zinc-500">({g.filas} conjuntos)</span>
+                              ) : null}
+                            </p>
                           </div>
                           <div>
                             <span className="text-[10px] font-medium uppercase text-zinc-400">Inserción</span>
@@ -751,15 +766,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                           </div>
                         </div>
                         <span
-                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                            l.estadoPortal === "RECIBIDA_EMPRESA"
-                              ? "bg-emerald-100 text-emerald-800"
-                              : l.estadoPortal === "ENVIADA_PROVEEDOR"
-                                ? "bg-orange-100 text-orange-900"
-                                : l.estadoPortal === "RECHAZADA_EMPRESA"
-                                  ? "bg-rose-100 text-rose-900"
-                                  : "bg-zinc-100 text-zinc-600"
-                          }`}
+                          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeEstadoGrupo(g.estadoPortal)}`}
                         >
                           {estadoEtiqueta}
                         </span>
