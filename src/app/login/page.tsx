@@ -54,7 +54,9 @@ function LoginForm() {
           />
           <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400/90">SaaS control piezas</p>
           <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">Iniciar sesión</h1>
-          <p className="mt-2 text-sm text-zinc-400">Cada proveedor ve solo sus comandas. Tras entrar irás al panel.</p>
+          <p className="mt-2 text-sm text-zinc-400">
+            Como proveedor verás las comandas que Astech te ha enviado. Tras entrar irás al panel.
+          </p>
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.06] p-8 shadow-2xl shadow-black/40 backdrop-blur-xl">
