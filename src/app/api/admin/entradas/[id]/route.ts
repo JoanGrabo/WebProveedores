@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Rol } from "@prisma/client";
 import { getSessionUser } from "@/lib/auth";
+import { aplicarFifoEntradasAcomandes } from "@/lib/entradas-comanda-fifo";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -16,8 +17,28 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 
   try {
-    await prisma.entrada.delete({ where: { idEntrada: id } });
-    return NextResponse.json({ ok: true });
+    const ent = await prisma.entrada.findUnique({ where: { idEntrada: id } });
+    if (!ent) {
+      return NextResponse.json({ error: "Entrada no encontrada" }, { status: 404 });
+    }
+    const prov = ent.proveedor.trim();
+    const num = ent.numeroComanda.trim();
+    const pieza = ent.codigoPieza.trim();
+
+    const recepcionFifo = await prisma.$transaction(async (tx) => {
+      await tx.entrada.delete({ where: { idEntrada: id } });
+      return aplicarFifoEntradasAcomandes(tx, prov, num, pieza);
+    });
+
+    return NextResponse.json({
+      ok: true,
+      recepcionFifo: {
+        unidadesEntradas: recepcionFifo.unidadesEntradas,
+        unidadesPedido: recepcionFifo.unidadesPedido,
+        lineasMarcadasRecibidas: recepcionFifo.lineasMarcadasRecibidas,
+        lineasRevertidasDeRecibida: recepcionFifo.lineasRevertidasDeRecibida,
+      },
+    });
   } catch (e) {
     const code = typeof e === "object" && e !== null && "code" in e ? String((e as { code?: string }).code) : "";
     if (code === "P2025") {

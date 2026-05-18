@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { aplicarFifoEntradasAcomandes } from "@/lib/entradas-comanda-fifo";
 
 const str45 = z.string().trim().min(1, "Obligatorio").max(45);
 
@@ -29,16 +30,24 @@ export async function createEntradaFromJson(json: unknown) {
     return NextResponse.json({ error: "Fecha de entrada no válida" }, { status: 400 });
   }
 
+  const prov = parsed.data.proveedor.trim();
+  const numCom = parsed.data.numeroComanda.trim();
+  const pieza = parsed.data.codigoPieza.trim();
+
   try {
-    const e = await prisma.entrada.create({
-      data: {
-        codigoPieza: parsed.data.codigoPieza,
-        unidadesPieza: parsed.data.unidadesPieza,
-        numeroAlbaran: parsed.data.numeroAlbaran,
-        fechaEntrada: fecha,
-        proveedor: parsed.data.proveedor,
-        numeroComanda: parsed.data.numeroComanda,
-      },
+    const { e, recepcionFifo } = await prisma.$transaction(async (tx) => {
+      const created = await tx.entrada.create({
+        data: {
+          codigoPieza: pieza,
+          unidadesPieza: parsed.data.unidadesPieza,
+          numeroAlbaran: parsed.data.numeroAlbaran,
+          fechaEntrada: fecha,
+          proveedor: prov,
+          numeroComanda: numCom,
+        },
+      });
+      const fifo = await aplicarFifoEntradasAcomandes(tx, prov, numCom, pieza);
+      return { e: created, recepcionFifo: fifo };
     });
     return NextResponse.json({
       entrada: {
@@ -49,6 +58,18 @@ export async function createEntradaFromJson(json: unknown) {
         fechaEntrada: e.fechaEntrada.toISOString(),
         proveedor: e.proveedor,
         numeroComanda: e.numeroComanda,
+      },
+      recepcionFifo: {
+        unidadesEntradas: recepcionFifo.unidadesEntradas,
+        unidadesPedido: recepcionFifo.unidadesPedido,
+        lineas: recepcionFifo.lineas.map((l) => ({
+          idComanda: l.idComanda,
+          pedido: l.pedido,
+          asignadoFifo: l.asignadoFifo,
+          recibida: l.recibida,
+        })),
+        lineasMarcadasRecibidas: recepcionFifo.lineasMarcadasRecibidas,
+        lineasRevertidasDeRecibida: recepcionFifo.lineasRevertidasDeRecibida,
       },
     });
   } catch (err) {

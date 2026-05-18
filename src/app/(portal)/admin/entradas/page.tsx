@@ -109,7 +109,22 @@ export default function AdminEntradasPage() {
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "Error al registrar");
-      setFormOk(`Entrada registrada (#${j.entrada?.idEntrada ?? "—"}).`);
+      const rf = j.recepcionFifo as
+        | {
+            unidadesEntradas: number;
+            unidadesPedido: number;
+            lineasMarcadasRecibidas: number;
+            lineas: { pedido: number; asignadoFifo: number; recibida: boolean }[];
+          }
+        | undefined;
+      let msg = `Entrada registrada (#${j.entrada?.idEntrada ?? "—"}).`;
+      if (rf && typeof rf.unidadesPedido === "number") {
+        msg += ` Acumulado entradas / pedido comanda (esta pieza): ${rf.unidadesEntradas}/${rf.unidadesPedido} uds.`;
+        if (rf.lineasMarcadasRecibidas > 0) {
+          msg += ` ${rf.lineasMarcadasRecibidas} línea(s) pasan a recibidas en empresa.`;
+        }
+      }
+      setFormOk(msg);
       setCodigoPieza("");
       setUnidadesPieza("");
       setNumeroAlbaran("");
@@ -156,7 +171,8 @@ export default function AdminEntradasPage() {
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">Administración</p>
         <h1 className="mt-2 text-2xl font-bold tracking-tight text-zinc-900 sm:text-3xl">Entradas</h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-600">
-          Registro de piezas recibidas (albarán, proveedor y comanda). Solo visible para administradores.
+          Registro de piezas recibidas (albarán, proveedor y comanda). Tras guardar, se reparten unidades en FIFO por{" "}
+          <code className="rounded bg-zinc-100 px-1 text-xs">idComanda</code> sobre la tabla <code className="rounded bg-zinc-100 px-1 text-xs">comandes</code> y, si cubren el pedido de cada línea, se confirma recepción en empresa automáticamente.
         </p>
         {me && (
           <p className="mt-2 text-xs text-zinc-500">
