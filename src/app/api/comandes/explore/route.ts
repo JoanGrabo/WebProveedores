@@ -4,9 +4,11 @@ import { getSessionUser } from "@/lib/auth";
 import {
   agruparLineasComanda,
   comandasIncompletasProveedorAgrupadas,
+  norm,
   resumenGruposPorComanda,
   resumenGruposPorProveedorComanda,
 } from "@/lib/comandes-lineas-agrupadas";
+import { calcularDistribucionFifoEntradas } from "@/lib/entradas-comanda-fifo";
 import { Rol } from "@prisma/client";
 import { z } from "zod";
 
@@ -239,7 +241,29 @@ export async function GET(req: NextRequest) {
 
     const agrupadas = agruparLineasComanda(serializadas);
 
-    return NextResponse.json({ lineas: agrupadas, agrupado: true });
+    const piezasClave = new Set<string>();
+    for (const g of agrupadas) {
+      const p = norm(g.codiPieza);
+      if (p) piezasClave.add(p);
+    }
+
+    const asignadoPorId = new Map<number, number>();
+    for (const pieza of Array.from(piezasClave)) {
+      const dist = await calcularDistribucionFifoEntradas(prisma, effectiveProv, numComanda, pieza);
+      for (const L of dist.lineas) {
+        asignadoPorId.set(L.idComanda, L.asignadoFifo);
+      }
+    }
+
+    const agrupadasConFifo = agrupadas.map((g) => {
+      let unidadesEntradasAsignadasGrupo = 0;
+      for (const id of g.idComandas) {
+        unidadesEntradasAsignadasGrupo += asignadoPorId.get(id) ?? 0;
+      }
+      return { ...g, unidadesEntradasAsignadasGrupo };
+    });
+
+    return NextResponse.json({ lineas: agrupadasConFifo, agrupado: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error desconocido";
     return NextResponse.json({ error: msg }, { status: 500 });

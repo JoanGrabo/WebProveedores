@@ -748,9 +748,11 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                             <p className="truncate font-mono text-sm font-semibold text-zinc-900">{g.OP ?? "—"}</p>
                           </div>
                           <div>
-                            <span className="text-[10px] font-medium uppercase text-zinc-400">Cantidad total</span>
+                            <span className="text-[10px] font-medium uppercase text-zinc-400">Entradas / pedido</span>
                             <p className="text-sm font-semibold text-zinc-900">
-                              {g.cantidadTotal}
+                              <span className="tabular-nums">
+                                {g.unidadesEntradasAsignadasGrupo ?? 0}/{g.cantidadTotal}
+                              </span>
                               {g.filas > 1 ? (
                                 <span className="ml-1 text-xs font-normal text-zinc-500">({g.filas} conjuntos)</span>
                               ) : null}

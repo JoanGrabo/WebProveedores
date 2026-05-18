@@ -33,6 +33,8 @@ export type LineaAgrupada = {
   codiPieza: string | null;
   codigoFab: string | null;
   cantidadTotal: number;
+  /** Unidades de entradas asignadas por FIFO a las líneas de este grupo (misma pieza en la comanda). */
+  unidadesEntradasAsignadasGrupo?: number;
   OP: string | null;
   tipus: string | null;
   fechaInsercion: string | null;
@@ -43,7 +45,7 @@ export type LineaAgrupada = {
   filas: number;
 };
 
-function norm(s: string | null | undefined): string {
+export function norm(s: string | null | undefined): string {
   return s == null ? "" : `${s}`.trim();
 }
 

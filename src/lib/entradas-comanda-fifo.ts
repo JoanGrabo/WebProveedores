@@ -1,4 +1,4 @@
-import type { Prisma } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { EstadoLineaComandesExt } from "@prisma/client";
 
 export type FifoLineaResumen = {
@@ -26,24 +26,28 @@ function parseUnidadesEntrada(s: string | null | undefined): number {
   return Number.isFinite(n) && n >= 0 ? n : 0;
 }
 
-type Tx = Prisma.TransactionClient;
+export type DistribucionFifoEntradas = {
+  unidadesEntradas: number;
+  unidadesPedido: number;
+  lineas: FifoLineaResumen[];
+};
+
+type Db = Prisma.TransactionClient | PrismaClient;
 
 /**
- * Reparte unidades de todas las entradas (misma pieza + proveedor + comanda) en orden
- * fechaEntrada, idEntrada sobre líneas de `comandes` ordenadas por idComanda (FIFO).
- * Marca RECIBIDA_EMPRESA cuando asignado >= pedido; si ya no alcanza, pasa RECIBIDA → ENVIADA.
+ * Solo lectura: reparto FIFO entradas → líneas `comandes` (misma pieza, proveedor, comanda).
  */
-export async function aplicarFifoEntradasAcomandes(
-  tx: Tx,
+export async function calcularDistribucionFifoEntradas(
+  db: Db,
   proveedor: string,
   numComanda: string,
   codigoPieza: string,
-): Promise<FifoRecepcionResultado> {
+): Promise<DistribucionFifoEntradas> {
   const prov = proveedor.trim();
   const num = numComanda.trim();
   const pieza = codigoPieza.trim();
 
-  const entradas = await tx.$queryRaw<{ idEntrada: number; unidadesPieza: string; fechaEntrada: Date }[]>`
+  const entradas = await db.$queryRaw<{ idEntrada: number; unidadesPieza: string; fechaEntrada: Date }[]>`
     SELECT idEntrada, unidadesPieza, fechaEntrada
     FROM entradas
     WHERE TRIM(Proveedor) = ${prov}
@@ -54,7 +58,7 @@ export async function aplicarFifoEntradasAcomandes(
 
   const unidadesEntradas = entradas.reduce((s, e) => s + parseUnidadesEntrada(e.unidadesPieza), 0);
 
-  const lineasCom = await tx.$queryRaw<
+  const lineasCom = await db.$queryRaw<
     { idComanda: number; cantidad: number | null; nomProveedor: string | null; numComanda: string | null }[]
   >`
     SELECT idComanda, cantidad, nomProveedor, numComanda
@@ -84,6 +88,33 @@ export async function aplicarFifoEntradasAcomandes(
       recibida,
     });
   }
+
+  return { unidadesEntradas, unidadesPedido, lineas: resumenLineas };
+}
+
+type Tx = Prisma.TransactionClient;
+
+/**
+ * Reparte unidades de todas las entradas (misma pieza + proveedor + comanda) en orden
+ * fechaEntrada, idEntrada sobre líneas de `comandes` ordenadas por idComanda (FIFO).
+ * Marca RECIBIDA_EMPRESA cuando asignado >= pedido; si ya no alcanza, pasa RECIBIDA → ENVIADA.
+ */
+export async function aplicarFifoEntradasAcomandes(
+  tx: Tx,
+  proveedor: string,
+  numComanda: string,
+  codigoPieza: string,
+): Promise<FifoRecepcionResultado> {
+  const prov = proveedor.trim();
+  const num = numComanda.trim();
+  const pieza = codigoPieza.trim();
+
+  const { unidadesEntradas, unidadesPedido, lineas: resumenLineas } = await calcularDistribucionFifoEntradas(
+    tx,
+    prov,
+    num,
+    pieza,
+  );
 
   let lineasMarcadasRecibidas = 0;
   let lineasRevertidasDeRecibida = 0;
