@@ -1,5 +1,6 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { EstadoLineaComandesExt } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
 export type FifoLineaResumen = {
   idComanda: number;
@@ -177,6 +178,59 @@ export async function aplicarFifoEntradasAcomandes(
     unidadesEntradas,
     unidadesPedido,
     lineas: resumenLineas,
+    lineasMarcadasRecibidas,
+    lineasRevertidasDeRecibida,
+  };
+}
+
+export type FifoComandaSyncResumen = {
+  piezasProcesadas: number;
+  lineasMarcadasRecibidas: number;
+  lineasRevertidasDeRecibida: number;
+};
+
+/**
+ * Aplica FIFO para todas las piezas de una comanda (líneas en `comandes` y/o `entradas`).
+ * Útil tras cargar la comanda cuando las entradas ya existían, o al abrir la comanda en el portal.
+ */
+export async function aplicarFifoTodasPiezasComanda(
+  proveedor: string,
+  numComanda: string,
+): Promise<FifoComandaSyncResumen> {
+  const prov = proveedor.trim();
+  const num = numComanda.trim();
+  if (!prov || !num) {
+    return { piezasProcesadas: 0, lineasMarcadasRecibidas: 0, lineasRevertidasDeRecibida: 0 };
+  }
+
+  const piezasRows = await prisma.$queryRaw<{ codigoPieza: string }[]>`
+    SELECT DISTINCT pieza AS codigoPieza FROM (
+      SELECT TRIM(codiPieza) AS pieza
+      FROM comandes
+      WHERE TRIM(nomProveedor) = ${prov} AND TRIM(numComanda) = ${num} AND TRIM(codiPieza) <> ''
+      UNION
+      SELECT TRIM(codigoPieza) AS pieza
+      FROM entradas
+      WHERE TRIM(Proveedor) = ${prov} AND TRIM(numeroComanda) = ${num} AND TRIM(codigoPieza) <> ''
+    ) AS u
+    WHERE pieza IS NOT NULL AND pieza <> ''
+  `;
+
+  let lineasMarcadasRecibidas = 0;
+  let lineasRevertidasDeRecibida = 0;
+
+  await prisma.$transaction(async (tx) => {
+    for (const row of piezasRows) {
+      const pieza = row.codigoPieza?.trim();
+      if (!pieza) continue;
+      const r = await aplicarFifoEntradasAcomandes(tx, prov, num, pieza);
+      lineasMarcadasRecibidas += r.lineasMarcadasRecibidas;
+      lineasRevertidasDeRecibida += r.lineasRevertidasDeRecibida;
+    }
+  });
+
+  return {
+    piezasProcesadas: piezasRows.length,
     lineasMarcadasRecibidas,
     lineasRevertidasDeRecibida,
   };

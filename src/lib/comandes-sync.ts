@@ -1,9 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { aplicarFifoTodasPiezasComanda } from "@/lib/entradas-comanda-fifo";
 
 /** Incrementa al cambiar la lógica de sync (comprueba despliegue con GET /api/mobile/comandas/sync). */
-export const COMANDA_SYNC_VERSION = 5;
+export const COMANDA_SYNC_VERSION = 6;
 
 export const comandaLineaSchema = z.object({
   numComanda: z.string().min(1).max(255),
@@ -197,6 +198,12 @@ export async function syncComandaFromExcel(
     return upsertStats;
   });
 
+  const nomProveedor = normKey(normalized[0]?.nomProveedor);
+  const fifo =
+    nomProveedor.length > 0
+      ? await aplicarFifoTodasPiezasComanda(nomProveedor, num)
+      : { piezasProcesadas: 0, lineasMarcadasRecibidas: 0, lineasRevertidasDeRecibida: 0 };
+
   return {
     syncVersion: COMANDA_SYNC_VERSION,
     numComanda: num,
@@ -204,5 +211,6 @@ export async function syncComandaFromExcel(
     syncDelete,
     inserted: stats.inserted,
     updated: stats.updated,
+    fifo,
   };
 }

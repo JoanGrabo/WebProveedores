@@ -8,7 +8,10 @@ import {
   resumenGruposPorComanda,
   resumenGruposPorProveedorComanda,
 } from "@/lib/comandes-lineas-agrupadas";
-import { calcularDistribucionFifoEntradas } from "@/lib/entradas-comanda-fifo";
+import {
+  aplicarFifoTodasPiezasComanda,
+  calcularDistribucionFifoEntradas,
+} from "@/lib/entradas-comanda-fifo";
 import { Rol } from "@prisma/client";
 import { z } from "zod";
 
@@ -197,6 +200,8 @@ export async function GET(req: NextRequest) {
     if (user.rol === Rol.PROVEEDOR && trimProveedor(parsed.data.proveedor) !== effectiveProv) {
       return NextResponse.json({ error: "No autorizado" }, { status: 403 });
     }
+
+    await aplicarFifoTodasPiezasComanda(effectiveProv, numComanda);
 
     const lineas = await prisma.$queryRaw<
       {
