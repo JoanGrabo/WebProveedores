@@ -211,3 +211,60 @@ export function resumenGruposPorProveedorComanda(
 
   return out;
 }
+
+export type ComandaIncompletaProveedorResumen = {
+  numComanda: string;
+  total: number;
+  confirmadas: number;
+  enviadas: number;
+  porHacer: number;
+};
+
+/**
+ * Dashboard proveedor «pendientes de cerrar»: contadores por grupo OP+pieza.
+ * La comanda sale de la lista cuando todos los grupos están en verde (RECIBIDA).
+ */
+export function comandasIncompletasProveedorAgrupadas(
+  lineas: { numComanda: string; OP: string | null; codiPieza: string | null; estadoPortal: string | null }[],
+): ComandaIncompletaProveedorResumen[] {
+  const porComanda = new Map<string, Map<string, (string | null)[]>>();
+
+  for (const l of lineas) {
+    const num = l.numComanda.trim();
+    if (!num) continue;
+    const gk = grupoKeyFromParts(l.OP, l.codiPieza);
+    let grupos = porComanda.get(num);
+    if (!grupos) {
+      grupos = new Map();
+      porComanda.set(num, grupos);
+    }
+    const arr = grupos.get(gk) ?? [];
+    arr.push(l.estadoPortal);
+    grupos.set(gk, arr);
+  }
+
+  const out: ComandaIncompletaProveedorResumen[] = [];
+  for (const [numComanda, grupos] of Array.from(porComanda.entries())) {
+    let total = 0;
+    let confirmadas = 0;
+    let enviadas = 0;
+    let porHacer = 0;
+
+    for (const estados of Array.from(grupos.values())) {
+      total++;
+      const estado = estadoPortalGrupo(estados);
+      if (estado === "RECIBIDA_EMPRESA") confirmadas++;
+      else if (estado === "ENVIADA_PROVEEDOR") enviadas++;
+      else porHacer++;
+    }
+
+    if (confirmadas < total) {
+      out.push({ numComanda, total, confirmadas, enviadas, porHacer });
+    }
+  }
+
+  out.sort((a, b) =>
+    a.numComanda.localeCompare(b.numComanda, undefined, { numeric: true, sensitivity: "base" }),
+  );
+  return out;
+}

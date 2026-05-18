@@ -207,7 +207,7 @@ export default function DashboardPage() {
         <section className="rounded-2xl border border-sky-200/90 bg-sky-50/50 p-6 shadow-sm ring-1 ring-sky-100 sm:p-8">
           <h2 className="text-sm font-semibold uppercase tracking-wider text-sky-950">Comandas pendientes de cerrar</h2>
           <p className="mt-2 max-w-3xl text-sm leading-relaxed text-sky-950/85">
-            Comandas en las que <strong>te falta cerrar alguna línea</strong>: pendientes, en naranja (aún sin confirmar en empresa) o declinadas que puedes volver a enviar. Cuando todo esté en verde, la comanda desaparece de esta lista.
+            Comandas en las que <strong>te falta cerrar alguna referencia</strong> (pieza + OP, sumando conjuntos): pendientes, en naranja (aún sin confirmar en empresa), parciales o declinadas que puedes volver a enviar. Cuando todo esté en verde, la comanda desaparece de esta lista.
           </p>
           {cargandoIncompletasProv ? (
             <p className="mt-4 text-sm text-sky-900/80">Cargando…</p>
@@ -221,7 +221,7 @@ export default function DashboardPage() {
                 <thead className="bg-sky-100/90 text-xs font-semibold uppercase text-sky-950">
                   <tr>
                     <th className="px-4 py-3">Comanda</th>
-                    <th className="px-4 py-3">Líneas totales</th>
+                    <th className="px-4 py-3">Referencias</th>
                     <th className="px-4 py-3">Confirmadas en empresa</th>
                     <th className="px-4 py-3">Enviadas</th>
                     <th className="px-4 py-3">Por hacer</th>

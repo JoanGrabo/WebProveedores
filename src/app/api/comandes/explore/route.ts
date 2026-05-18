@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
 import {
   agruparLineasComanda,
+  comandasIncompletasProveedorAgrupadas,
   resumenGruposPorComanda,
   resumenGruposPorProveedorComanda,
 } from "@/lib/comandes-lineas-agrupadas";
@@ -123,42 +124,21 @@ export async function GET(req: NextRequest) {
           { status: 403 },
         );
       }
-      const rows = await prisma.$queryRaw<
-        {
-          numComanda: string;
-          total: bigint;
-          porHacer: bigint;
-          enviadas: bigint;
-          confirmadas: bigint;
-        }[]
+      const filas = await prisma.$queryRaw<
+        { numComanda: string; OP: string | null; codiPieza: string | null; estadoPortal: string | null }[]
       >`
         SELECT
           TRIM(c.numComanda) AS numComanda,
-          CAST(COUNT(*) AS UNSIGNED) AS total,
-          CAST(
-            COALESCE(
-              SUM(IF(e.estado IS NULL OR e.estado = 'RECHAZADA_EMPRESA', 1, 0)),
-              0
-            ) AS UNSIGNED
-          ) AS porHacer,
-          CAST(COALESCE(SUM(IF(e.estado = 'ENVIADA_PROVEEDOR', 1, 0)), 0) AS UNSIGNED) AS enviadas,
-          CAST(COALESCE(SUM(IF(e.estado = 'RECIBIDA_EMPRESA', 1, 0)), 0) AS UNSIGNED) AS confirmadas
+          c.OP,
+          c.codiPieza,
+          e.estado AS estadoPortal
         FROM comandes c
         LEFT JOIN lineas_comandes_estado e ON e.id_linea_comandes = c.idComanda
         WHERE TRIM(c.nomProveedor) = ${effective}
           AND c.numComanda IS NOT NULL AND TRIM(c.numComanda) <> ''
-        GROUP BY TRIM(c.numComanda)
-        HAVING confirmadas < total
-        ORDER BY numComanda ASC
       `;
-      const comandas = rows.map((r) => ({
-        numComanda: r.numComanda,
-        total: Number(r.total),
-        porHacer: Number(r.porHacer),
-        enviadas: Number(r.enviadas),
-        confirmadas: Number(r.confirmadas),
-      }));
-      return NextResponse.json({ comandas });
+      const comandas = comandasIncompletasProveedorAgrupadas(filas);
+      return NextResponse.json({ comandas, agrupado: true });
     }
 
     if (parsed.data.step === "comandas") {
