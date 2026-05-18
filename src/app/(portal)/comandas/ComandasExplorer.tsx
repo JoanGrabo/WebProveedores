@@ -39,8 +39,8 @@ function grupoSeleccionado(g: LineaAgrupada, seleccion: Set<number>): boolean {
   return g.idComandas.length > 0 && g.idComandas.every((id) => seleccion.has(id));
 }
 
-/** Estilo de tarjeta de línea agrupada (clic para seleccionar según rol y estado). */
-function cardTone(l: LineaAgrupada, seleccionado: boolean, rol: Me["rol"] | null): string {
+/** Estilo de tarjeta de línea agrupada según estado y selección. */
+function cardTone(l: LineaAgrupada, seleccionado: boolean): string {
   if (l.estadoPortal === "PARCIAL") {
     const base = "border-l-[6px] border-amber-500 bg-amber-50/90 shadow-sm";
     if (seleccionado) return `${base} ring-2 ring-amber-400 ring-offset-1`;
@@ -735,7 +735,7 @@ export function ComandasExplorer(props: ComandasExplorerProps = {}) {
                           toggleGrupo(g);
                         }
                       }}
-                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(g, sel, me?.rol ?? null)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
+                      className={`rounded-lg px-3 py-2 text-left transition ${cardTone(g, sel)} ${bloqueada ? "cursor-default" : "cursor-pointer"}`}
                     >
                       <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                         <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4 sm:items-center">
