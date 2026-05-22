@@ -3,6 +3,7 @@ import { Prisma, EstadoLineaComandesExt, Rol } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth";
+import { registrarIncidenciasDeclinacion } from "@/lib/incidencias";
 
 export const dynamic = "force-dynamic";
 
@@ -115,12 +116,26 @@ export async function POST(req: NextRequest) {
     }
 
     const rows = await prisma.$queryRaw<
-      { idComanda: number; nomProveedor: string; numComanda: string }[]
+      {
+        idComanda: number;
+        nomProveedor: string;
+        numComanda: string;
+        codiPieza: string | null;
+        codigoFab: string | null;
+        codigoConjunto: string | null;
+        OP: string | null;
+        cantidad: number | null;
+      }[]
     >`
       SELECT
         c.idComanda AS idComanda,
         TRIM(c.nomProveedor) AS nomProveedor,
-        TRIM(c.numComanda) AS numComanda
+        TRIM(c.numComanda) AS numComanda,
+        c.codiPieza,
+        c.codigoFab,
+        c.codigoConjunto,
+        c.OP,
+        c.cantidad
       FROM comandes c
       WHERE c.idComanda IN (${Prisma.join(ids)})
     `;
@@ -133,9 +148,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await prisma.$transaction(
-      rows.map((r) =>
-        prisma.lineaComandesEstado.upsert({
+    const { loteId, creadas: incidenciasGuardadas } = await prisma.$transaction(async (tx) => {
+      for (const r of rows) {
+        await tx.lineaComandesEstado.upsert({
           where: { idLineaComandes: r.idComanda },
           create: {
             idLineaComandes: r.idComanda,
@@ -152,14 +167,31 @@ export async function POST(req: NextRequest) {
             numComanda: r.numComanda,
             comentarioDeclinacion,
           },
-        }),
-      ),
-    );
+        });
+      }
+      return registrarIncidenciasDeclinacion(tx, {
+        lineas: rows.map((r) => ({
+          idComanda: r.idComanda,
+          nomProveedor: r.nomProveedor,
+          numComanda: r.numComanda,
+          codiPieza: r.codiPieza,
+          codigoFab: r.codigoFab,
+          codigoConjunto: r.codigoConjunto,
+          OP: r.OP,
+          cantidad: r.cantidad,
+        })),
+        comentario: comentarioDeclinacion,
+        registradoPorId: user.id,
+        registradoPorNombre: user.nombre,
+      });
+    });
 
     return NextResponse.json({
       ok: true,
-      mensaje: `Declinadas ${rows.length} línea(s). El proveedor verá el motivo indicado hasta que se confirme recepción.`,
+      mensaje: `Declinadas ${rows.length} línea(s). El proveedor verá el motivo indicado hasta que se confirme recepción. Incidencia registrada en el historial.`,
       actualizadas: rows.length,
+      incidenciasGuardadas,
+      loteId,
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error";

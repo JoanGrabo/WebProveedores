@@ -92,6 +92,36 @@ model LineaComandesEstado {
   @@map("lineas_comandes_estado")
 }
 
+/// Historial permanente de incidencias (p. ej. declinaciones de recepción). No se borra al cambiar el estado de la línea.
+enum TipoIncidencia {
+  DECLINACION_RECEPCION
+}
+
+model Incidencia {
+  id                String         @id @default(cuid())
+  /// Agrupa las líneas declinadas en una misma acción del administrador
+  loteId            String         @map("lote_id")
+  tipo              TipoIncidencia @default(DECLINACION_RECEPCION)
+  nomProveedor      String         @map("nom_proveedor") @db.VarChar(255)
+  numComanda        String         @map("num_comanda") @db.VarChar(255)
+  idLineaComandes   Int            @map("id_linea_comandes")
+  codiPieza         String?        @map("codi_pieza") @db.VarChar(255)
+  codigoFab         String?        @map("codigo_fab") @db.VarChar(255)
+  codigoConjunto    String?        @map("codigo_conjunto") @db.VarChar(255)
+  OP                String?        @db.VarChar(255)
+  cantidad          Int?
+  comentario        String         @db.Text
+  registradoPorId   String?        @map("registrado_por_id")
+  registradoPorNombre String       @map("registrado_por_nombre") @db.VarChar(200)
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@index([nomProveedor, createdAt])
+  @@index([loteId])
+  @@index([numComanda])
+  @@index([createdAt])
+  @@map("incidencias")
+}
+
 model Usuario {
   id        String   @id @default(cuid())
   nombre    String
